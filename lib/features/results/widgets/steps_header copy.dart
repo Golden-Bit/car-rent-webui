@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Header a 4 step con contenuti dinamici per Step 1 (location/date),
-/// Step 2 (auto) e Step 3 (extra selezionati con totale).
 class StepsHeader extends StatelessWidget {
   final int currentStep; // 1..4
   final Color accent;    // arancione scuro (es. kBrandDark)
@@ -18,12 +16,6 @@ class StepsHeader extends StatelessWidget {
   final String? step2Thumb;     // url immagine
   final String? step2Price;     // es. "€ 124,64"
 
-  // STEP 3 – extras (nuovo)
-  /// Elenco degli extra selezionati (etichette già pronte da mostrare)
-  final List<String>? step3Extras;
-  /// Totale degli extra formattato (es. "€ 42,00")
-  final String? step3ExtrasTotal;
-
   final void Function(int step)? onTapStep;
 
   const StepsHeader({
@@ -38,8 +30,6 @@ class StepsHeader extends StatelessWidget {
     this.step2Subtitle,
     this.step2Thumb,
     this.step2Price,
-    this.step3Extras,
-    this.step3ExtrasTotal,
     this.onTapStep,
   });
 
@@ -278,74 +268,7 @@ class StepsHeader extends StatelessWidget {
       );
     }
 
-    // STEP 3 – extra selezionati (nuovo contenuto)
-    Widget step3Box() {
-      final n = 3;
-      final tappable = isDone(n) || isCurrent(n);
-      final extras = (step3Extras ?? const <String>[]);
-      final hasExtras = extras.isNotEmpty;
-
-      List<Widget> extrasWidgets() {
-        const maxShow = 3;
-        final shown = extras.take(maxShow).toList();
-        final more = extras.length - shown.length;
-        return [
-          for (final e in shown)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                children: [
-                  const Icon(Icons.add_circle, size: 14, color: Colors.black45),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      e,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          if (more > 0)
-            Text('+$more altro/i', style: const TextStyle(color: Colors.black54)),
-          if (step3ExtrasTotal != null) ...[
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                const Text('Totale extra:', style: TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(width: 6),
-                Text(
-                  step3ExtrasTotal!,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-              ],
-            ),
-          ],
-        ];
-      }
-
-      return Expanded(
-        child: InkWell(
-          onTap: tappable ? () => onTapStep?.call(n) : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                stepHeaderRow(n, 'Scelta extra'),
-                if (hasExtras) ...[
-                  const SizedBox(height: 12),
-                  ...extrasWidgets(),
-                ],
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    // STEP 4 – solo titolo (cliccabile se già svolto)
+    // STEP 3/4 – solo titolo (ma la card resta cliccabile se già svolto)
     Widget simpleStep(int n, String title) {
       final tappable = isDone(n) || isCurrent(n);
       return Expanded(
@@ -387,7 +310,7 @@ class StepsHeader extends StatelessWidget {
                 vDivider(),
                 step2Box(),
                 vDivider(),
-                step3Box(),                 // <— nuovo blocco con lista extra + totale
+                simpleStep(3, 'Scelta extra'),
                 vDivider(),
                 simpleStep(4, 'Totale noleggio'),
               ],

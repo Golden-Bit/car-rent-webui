@@ -1,40 +1,24 @@
 import 'dart:math';
-import 'package:car_rent_webui/core/deeplink/initial_config.dart';
 import 'package:car_rent_webui/features/results/models/offer_adapter.dart';
 import 'package:car_rent_webui/features/results/widgets/steps_header.dart';
-import 'package:car_rent_webui/features/search/presentation/pages/confirm_page.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/widgets/top_nav_bar.dart';
 
-class ExtrasPageArgs {
-  final Map<String, dynamic> dataJson;
-  final Offer selected;
-  final List<InitialExtra> preselectedExtras;
 
-  const ExtrasPageArgs({
-    required this.dataJson,
-    required this.selected,
-    this.preselectedExtras = const [],
-  });
-}
 /// Brand
 const kBrand = Color(0xFFFF5A19);
 const kBrandDark = Color(0xFFE2470C);
 
 class ExtrasPage extends StatefulWidget {
-   static const routeName = '/extras'; // <-- AGGIUNTO
   final Map<String, dynamic> dataJson;
   final Offer selected;
-  final InitialConfig? initialConfig; // NEW
-final List<InitialExtra> preselectedExtras;
+
   const ExtrasPage({
     super.key,
     required this.dataJson,
     required this.selected,
-    this.preselectedExtras = const [],
-    this.initialConfig,
   });
 
   @override
@@ -48,57 +32,11 @@ class _ExtrasPageState extends State<ExtrasPage> {
   late final int _rentalDays;
   late final List<_OptionalVM> _optionals;
 
-  // NEW: applica preselezione (match su EquipType, fallback su Description/titolo)
-  void _applyPreselectedExtras(List<InitialExtra> xs) {
-    if (xs.isEmpty) return;
-    for (var i = 0; i < _optionals.length; i++) {
-      final code = _extractCodeFromRaw(widget.dataJson, i);
-      final title = _optionals[i].title.toLowerCase();
-      final hit = xs.any((x) {
-        final xcode = x.code.toLowerCase();
-        return (code != null && xcode == code.toLowerCase()) || xcode == title;
-      });
-      if (hit) _selectedOptionals.add(i);
-    }
-    // non setState qui: initState termina prima del primo build
-  }
-
-  // NEW: estrae il codice raw dell'optional (EquipType o Description)
-  String? _extractCodeFromRaw(Map<String, dynamic> data, int index) {
-    final list = data['optionals'];
-    if (list is! List || index < 0 || index >= list.length) return null;
-    final m = (list[index] as Map).cast<String, dynamic>();
-    final equip = (m['Equipment'] as Map?)?.cast<String, dynamic>();
-    return (equip?['EquipType'] as String?) ??
-           (equip?['Description'] as String?);
-  }
-
-  // NEW: totale grezzo degli extra selezionati, rispettando isMultipliable * giorni
-  num get _extrasTotalRaw {
-    final list = widget.dataJson['optionals'];
-    if (list is! List) return 0;
-    num sum = 0;
-    for (final idx in _selectedOptionals) {
-      final raw = (list[idx] as Map).cast<String, dynamic>();
-      final charge = (raw['Charge'] as Map?)?.cast<String, dynamic>() ?? const {};
-      final equip  = (raw['Equipment'] as Map?)?.cast<String, dynamic>() ?? const {};
-      final amount = (charge['Amount'] as num?) ?? 0;
-      final perDay = (equip['isMultipliable'] as bool?) ?? true;
-      sum += perDay ? amount * _rentalDays : amount;
-    }
-    return sum;
-  }
-
-  // NEW: formato stringa per StepsHeader
-  String get _extrasTotalFmt => _formatMoney(_extrasTotalRaw, 'EUR');
-
   @override
   void initState() {
     super.initState();
     _rentalDays = _computeRentalDays(widget.dataJson);
     _optionals = _readOptionals(widget.dataJson);
-
-    _applyPreselectedExtras(widget.preselectedExtras); // NEW
   }
 
   @override
@@ -113,9 +51,6 @@ class _ExtrasPageState extends State<ExtrasPage> {
           StepsHeader(
             currentStep: 3,
             accent: kBrandDark,
-  // NEW ↓ (lista etichette + totale formattato)
-  step3Extras: _selectedOptionals.map((i) => _optionals[i].title).toList(),
-  step3ExtrasTotal: _extrasTotalFmt,
             step1Pickup: _displayLocationName(
                   widget.dataJson,
                   codeKey: 'PickUpLocation',
@@ -260,59 +195,14 @@ class _ExtrasPageState extends State<ExtrasPage> {
                           textStyle: const TextStyle(
                               fontWeight: FontWeight.w700, fontSize: 14),
                         ),
-onPressed: () {
-  // 1) Costruisci la lista di InitialExtra dai selezionati
-  final extras = <InitialExtra>[];
-  final rawList = (widget.dataJson['optionals'] as List?) ?? const [];
-  for (final idx in _selectedOptionals) {
-    if (idx < 0 || idx >= rawList.length) continue;
-    final raw = (rawList[idx] as Map).cast<String, dynamic>();
-    final equip = (raw['Equipment'] as Map?)?.cast<String, dynamic>() ?? const {};
-    final code = (equip['EquipType'] as String?) ??
-        (equip['Description'] as String?) ??
-        'EXTRA_${idx + 1}';
-    final perDay = (equip['isMultipliable'] as bool?) ?? true;
-    extras.add(InitialExtra(code: code, qty: 1, perDay: perDay));
-  }
-
-  // 2) Partiamo dalla cfg già presente o ricostruiamola dal dataJson
-  final pickCode = widget.dataJson['PickUpLocation']?.toString() ?? '';
-  final dropCode = widget.dataJson['ReturnLocation']?.toString() ?? '';
-  final startIso = widget.dataJson['PickUpDateTime']?.toString();
-  final endIso = widget.dataJson['ReturnDateTime']?.toString();
-
-  InitialConfig base = widget.initialConfig ??
-      InitialConfig.fromManual(
-        pickupCode: pickCode,
-        dropoffCode: dropCode,
-        startUtc: startIso != null ? DateTime.parse(startIso) : DateTime.now().toUtc(),
-        endUtc: endIso != null ? DateTime.parse(endIso) : DateTime.now().toUtc(),
-        channel: 'WEB_APP',
-        initialStep: 3,
-      );
-
-  // 3) Aggiorna con step=4, vehicleId e extras → e assicurati originalMap
-  final cfgForConfirm = base
-      .copyWith(
-        step: 4,
-        vehicleId: base.vehicleId ?? widget.selected.id ?? widget.selected.vehicleId ?? widget.selected.code,
-        extras: extras,
-      )
-      .withOriginalFromSelf();
-
-  // 4) Vai alla Confirm
-Navigator.pushNamed(
-  context,
-  ConfirmPage.routeName,
-  arguments: ConfirmArgs(
-    cfg: cfgForConfirm,
-    dataJson: widget.dataJson,
-    selected: widget.selected,
-    selectedExtras: extras, // la lista InitialExtra costruita al “Prosegui”
-  ),
-);
-},
-
+                        onPressed: () {
+                          // TODO: vai allo Step 4 con selections
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Prosegui (Step 4) – TODO'),
+                            ),
+                          );
+                        },
                         child: const Text('Prosegui'),
                       ),
                     ),

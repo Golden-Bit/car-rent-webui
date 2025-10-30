@@ -1,26 +1,39 @@
 /// Adattatore resiliente per l'offerta a partire dal JSON di quotations
-/// (compatibile con l'API aggiornata: Vehicle.seats/doors/transmission/fuel)
+/// (compatibile con Vehicle.seats/doors/transmission/fuel e aggiunge id/code)
 import 'dart:convert';
 
 class Offer {
   final Map<String, dynamic> raw;
 
-  final String? status;       // "Available" | "Unavailable"
-  final String? name;         // Vehicle.VehMakeModel[0].Name | Vehicle.model
-  final String? group;        // Vehicle.VendorCarMacroGroup
-  final String? type;         // Vehicle.VendorCarType
-  final String? acriss;       // Vehicle.Code
-  final String? transmission; // "Manuale"/"Automatico"
-  final String? fuel;         // "Benzina"/"Diesel"/"Elettrica"/"Ibrida"/...
-  final int? seats;           // Vehicle.seats
-  final int? doors;           // Vehicle.doors
-  final int? days;            // Reference.calculated.days
-  final double? pricePerDay;  // Reference.calculated.base_daily
-  final double? total;        // Reference.calculated.total
-  final String? imageUrl;     // groupPic.url
+  // Identificativi (NUOVI)
+  final String? id;            // Vehicle.id (string) se presente
+  final String? vehicleId;     // alias utile == id, o Code/nationalCode se manca id
+  final String? code;          // Vehicle.Code (ACRISS o simile)
+  final String? nationalCode;  // Vehicle.nationalCode
+
+  // Dati UI
+  final String? status;        // "Available" | "Unavailable"
+  final String? name;          // VehMakeModel[0].Name | Vehicle.model
+  final String? group;         // Vehicle.VendorCarMacroGroup
+  final String? type;          // Vehicle.VendorCarType
+  final String? acriss;        // == code
+  final String? transmission;  // "Manuale"/"Automatico"/string raw
+  final String? fuel;          // "Benzina"/"Diesel"/"Elettrica"/"Ibrida"/...
+  final int? seats;            // Vehicle.seats
+  final int? doors;            // Vehicle.doors
+  final int? days;             // Reference.calculated.days
+  final double? pricePerDay;   // Reference.calculated.base_daily
+  final double? total;         // Reference.calculated.total | fallback TotalCharge
+  final String? imageUrl;      // groupPic.url
 
   Offer({
     required this.raw,
+    // ids
+    this.id,
+    this.vehicleId,
+    this.code,
+    this.nationalCode,
+    // ui
     this.status,
     this.name,
     this.group,
@@ -38,39 +51,53 @@ class Offer {
 
   static Offer fromJson(Map<String, dynamic> m) {
     final vehicle =
-        (m['Vehicle'] is Map) ? m['Vehicle'] as Map : const <String, dynamic>{};
+        (m['Vehicle'] is Map) ? (m['Vehicle'] as Map).cast<String, dynamic>() : const <String, dynamic>{};
     final ref =
-        (m['Reference'] is Map) ? m['Reference'] as Map : const <String, dynamic>{};
+        (m['Reference'] is Map) ? (m['Reference'] as Map).cast<String, dynamic>() : const <String, dynamic>{};
     final calc =
-        (ref['calculated'] is Map) ? ref['calculated'] as Map : const <String, dynamic>{};
+        (ref['calculated'] is Map) ? (ref['calculated'] as Map).cast<String, dynamic>() : const <String, dynamic>{};
     final makeModels = (vehicle['VehMakeModel'] is List)
-        ? List<Map<String, dynamic>>.from(vehicle['VehMakeModel'])
+        ? List<Map<String, dynamic>>.from(vehicle['VehMakeModel'] as List)
         : <Map<String, dynamic>>[];
     final groupPic =
-        (m['groupPic'] is Map) ? m['groupPic'] as Map : const <String, dynamic>{};
+        (m['groupPic'] is Map) ? (m['groupPic'] as Map).cast<String, dynamic>() : const <String, dynamic>{};
 
-    final acriss = vehicle['Code']?.toString();
-    final name = (makeModels.isNotEmpty
+    // ---------- Identificativi ----------
+    final String? id = vehicle['id']?.toString() ?? vehicle['Id']?.toString();
+    final String? code = (vehicle['Code'] ?? vehicle['code'])?.toString();
+    final String? nationalCode = (vehicle['nationalCode'] ?? vehicle['NationalCode'])?.toString();
+    // vehicleId come alias flessibile (prima id, poi code, poi nationalCode)
+    final String? vehicleId = id ?? code ?? nationalCode;
+
+    // ---------- Nome / modello ----------
+    final String? name = (makeModels.isNotEmpty
             ? makeModels.first['Name']?.toString()
             : null) ??
-        vehicle['model']?.toString();
+        vehicle['model']?.toString() ??
+        vehicle['brand']?.toString();
 
-    // trasmissione
+    // ---------- Trasmissione ----------
     String? gear;
     final tRaw = (vehicle['transmission'] ?? vehicle['Transmission'])?.toString();
     if (tRaw != null && tRaw.isNotEmpty) {
-      gear = (tRaw.toUpperCase() == 'A') ? 'Automatico' : (tRaw.toUpperCase() == 'M') ? 'Manuale' : tRaw;
-    } else if (acriss != null && acriss.length >= 3) {
-      final ch = acriss[2].toUpperCase();
+      final up = tRaw.toUpperCase();
+      gear = (up == 'A')
+          ? 'Automatico'
+          : (up == 'M')
+              ? 'Manuale'
+              : tRaw;
+    } else if (code != null && code.length >= 3) {
+      final ch = code[2].toUpperCase();
       if (ch == 'M') gear = 'Manuale';
       if (ch == 'A') gear = 'Automatico';
     }
 
-    // carburante
+    // ---------- Carburante ----------
     String? fuel;
-    final fRaw = (vehicle['fuel'] ?? vehicle['Fuel'])?.toString().toUpperCase();
-    if (fRaw != null) {
-      switch (fRaw) {
+    final fRaw = (vehicle['fuel'] ?? vehicle['Fuel'])?.toString();
+    if (fRaw != null && fRaw.isNotEmpty) {
+      final up = fRaw.toUpperCase();
+      switch (up) {
         case 'PETROL':
         case 'GASOLINE':
           fuel = 'Benzina';
@@ -85,42 +112,62 @@ class Offer {
           fuel = 'Ibrida';
           break;
         default:
-          fuel = fRaw;
+          fuel = fRaw; // lascia com'è (metano, gpl, ecc.)
       }
     }
-    if (fuel == null && acriss != null && acriss.length >= 4) {
-      final ch = acriss[3].toUpperCase();
+    if (fuel == null && code != null && code.length >= 4) {
+      final ch = code[3].toUpperCase();
       fuel = (ch == 'E')
           ? 'Elettrica'
           : (ch == 'H')
               ? 'Ibrida'
               : null;
     }
-    fuel ??= ((vehicle['VendorCarMacroGroup']?.toString().toUpperCase() ?? '')
-                .contains('ELECTRIC') ||
-            (name?.toLowerCase() ?? '').contains('electric'))
+    fuel ??= ((vehicle['VendorCarMacroGroup']?.toString().toUpperCase() ?? '').contains('ELECTRIC') ||
+              (name?.toLowerCase() ?? '').contains('electric'))
         ? 'Elettrica'
-        : 'Benzina/Diesel';
+        : null; // se non deducibile, lascia null e la UI può mostrare un placeholder
 
-    // seats/doors con fallback
+    // ---------- Seats / doors ----------
     final seats = _toInt(vehicle['seats'] ?? vehicle['Seats'] ?? vehicle['Posti']);
     final doors = _toInt(vehicle['doors'] ?? vehicle['Doors'] ?? vehicle['Porte']);
 
+    // ---------- Prezzi / giorni ----------
+    final int? days = _toInt(calc['days']);
+    double? pricePerDay = _toDouble(calc['base_daily']);
+    double? total = _toDouble(calc['total']);
+
+    // fallback: TotalCharge a livello di VehicleStatus/raw
+    if (total == null && m['TotalCharge'] is Map) {
+      final tc = (m['TotalCharge'] as Map).cast<String, dynamic>();
+      total = _toDouble(tc['RateTotalAmount']) ?? _toDouble(tc['EstimatedTotalAmount']);
+    }
+    // se manca base_daily ma ho total & days → calcola approx.
+    if (pricePerDay == null && total != null && days != null && days > 0) {
+      pricePerDay = total / days;
+    }
+
     return Offer(
       raw: m,
+      // ids
+      id: id,
+      vehicleId: vehicleId,
+      code: code,
+      nationalCode: nationalCode,
+      // ui
       status: m['Status']?.toString(),
       name: name,
       group: vehicle['VendorCarMacroGroup']?.toString(),
       type: vehicle['VendorCarType']?.toString(),
-      acriss: acriss,
+      acriss: code,
       transmission: gear,
       fuel: fuel,
       seats: seats,
       doors: doors,
-      days: _toInt(calc['days']),
-      pricePerDay: _toDouble(calc['base_daily']),
-      total: _toDouble(calc['total']),
-      imageUrl: groupPic['url']?.toString(),
+      days: days,
+      pricePerDay: pricePerDay,
+      total: total,
+      imageUrl: groupPic['url']?.toString() ?? vehicle['imageUrl']?.toString() ?? vehicle['image_url']?.toString(),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:car_rent_webui/car_rent_sdk/sdk.dart';
+import 'package:car_rent_webui/core/deeplink/initial_config.dart';
 
 /// Config via --dart-define
 const String kApiBaseUrl =
@@ -47,4 +48,19 @@ class MyrentRepository {
 
     return client.createQuotation(req);
   }
+
+  Future<QuotationResponse> createQuotationFromConfig(InitialConfig cfg) {
+return createQuotation(
+pickupCode: cfg.pickupLocation,
+dropoffCode: cfg.dropoffLocation,
+startUtc: cfg.start.toUtc(),
+endUtc: cfg.end.toUtc(),
+age: cfg.age,
+coupon: cfg.coupon,
+channel: cfg.channel ?? 'WEB_APP',
+showPics: true,
+showVehicleParameter: true,
+macro: null,
+);
+}
 }

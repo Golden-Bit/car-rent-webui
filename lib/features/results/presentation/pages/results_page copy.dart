@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:car_rent_webui/car_rent_sdk/sdk.dart';
-import 'package:car_rent_webui/core/deeplink/initial_config.dart';
 import 'package:car_rent_webui/features/results/models/offer_adapter.dart';
 import 'package:car_rent_webui/features/results/presentation/pages/extras_page.dart';
 import 'package:car_rent_webui/features/results/widgets/steps_header.dart';
@@ -12,12 +11,6 @@ import '../../../../core/widgets/top_nav_bar.dart';
 /// Brand orange
 const kBrand = Color(0xFFFF5A19);
 const kBrandDark = Color(0xFFE2470C);
-
-class ResultsArgs {
-  final QuotationResponse response;
-  final InitialConfig? cfg;
-  ResultsArgs({required this.response, this.cfg});
-}
 
 class ResultsPage extends StatefulWidget {
   static const routeName = '/results';
@@ -36,9 +29,6 @@ class _ResultsPageState extends State<ResultsPage> {
   // Offerte
   List<Offer> _all = [];
 
-  InitialConfig? _cfg;               
-  Offer? _preselected;              
-
   // Filtri
   String? _fuelFilter;
   String? _gearFilter;
@@ -48,108 +38,49 @@ class _ResultsPageState extends State<ResultsPage> {
   List<String> _fuels = [];
   List<String> _gears = [];
   List<int> _seats = [];
-@override
-void didChangeDependencies() {
-  super.didChangeDependencies();
-  if (_hydrated) return;
 
-  // 1) Recupero argomenti
-  final arg = ModalRoute.of(context)?.settings.arguments;
-  QuotationResponse? q;
-  if (arg is ResultsArgs) {
-    q = arg.response;
-    _cfg = arg.cfg;
-  } else if (arg is QuotationResponse) {
-    q = arg;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_hydrated) return;
+
+    final arg = ModalRoute.of(context)?.settings.arguments;
+    final q = arg is QuotationResponse ? arg : null;
+
+    _rootJson = q?.toJson() as Map<String, dynamic>?;
+    _dataJson = (_rootJson?['data'] is Map)
+        ? _rootJson!['data'] as Map<String, dynamic>
+        : null;
+
+    final raw = (_dataJson?['Vehicles'] is List)
+        ? List<Map<String, dynamic>>.from(_dataJson!['Vehicles'])
+        : <Map<String, dynamic>>[];
+
+    _all = raw.map(Offer.fromJson).toList();
+
+    // domini filtri
+    _fuels = {
+      for (final o in _all)
+        if (o.fuel != null && o.fuel!.isNotEmpty) o.fuel!
+    }.toList()
+      ..sort();
+
+    _gears = {
+      for (final o in _all)
+        if (o.transmission != null && o.transmission!.isNotEmpty)
+          o.transmission!
+    }.toList()
+      ..sort();
+
+    _seats = {
+      for (final o in _all)
+        if (o.seats != null && o.seats! > 0) o.seats!
+    }.toList()
+      ..sort();
+
+    _hydrated = true;
+    if (mounted) setState(() {});
   }
-
-  // 2) Estraggo JSON sorgente
-  _rootJson = q?.toJson() as Map<String, dynamic>?;
-  _dataJson = (_rootJson?['data'] is Map)
-      ? _rootJson!['data'] as Map<String, dynamic>
-      : null;
-
-  // 3) Leggo "Vehicles" in modo sicuro (senza assumere i tipi)
-  final List<Map<String, dynamic>> raw = (_dataJson?['Vehicles'] is List)
-      ? List<Map<String, dynamic>>.from(
-          (_dataJson!['Vehicles'] as List).map((e) => Map<String, dynamic>.from(e as Map)),
-        )
-      : <Map<String, dynamic>>[];
-
-  // 4) **POPOLO `_all`** usando l’adapter che mi hai dato
-  _all = raw.map((m) => Offer.fromJson(m)).toList();
-
-  // (facoltativo) ordino per totale se disponibile
-  _all.sort((a, b) {
-    final ax = a.total ?? double.infinity;
-    final bx = b.total ?? double.infinity;
-    return ax.compareTo(bx);
-  });
-
-  // 5) Ora posso calcolare la preselezione (serve `_all` piena)
-  _preselected = _selectByVehicleId(_cfg?.vehicleId);
-
-  // 6) Domini per i filtri (ora che `_all` è popolata)
-  _fuels = {
-    for (final o in _all)
-      if (o.fuel?.isNotEmpty == true) o.fuel!
-  }.toList()
-    ..sort();
-
-  _gears = {
-    for (final o in _all)
-      if (o.transmission?.isNotEmpty == true) o.transmission!
-  }.toList()
-    ..sort();
-
-  _seats = {
-    for (final o in _all)
-      if (o.seats != null && o.seats! > 0) o.seats!
-  }.toList()
-    ..sort();
-
-  _hydrated = true;
-  if (mounted) setState(() {});
-
-  // 7) Se arrivo da deep-link ed è richiesto Step>=3 con auto pre-selezionata, vai direttamente agli extra
-  if (_cfg != null && (_cfg!.step) >= 3 && _preselected != null && _dataJson != null) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ExtrasPage(
-            dataJson: _dataJson!,
-            selected: _preselected!,
-            preselectedExtras: _cfg!.extras,
-            initialConfig: _cfg, // NEW
-          ),
-        ),
-      );
-    });
-  }
-}
-
-
-Offer? _selectByVehicleId(String? vehicleId) {
-  if (vehicleId == null || vehicleId.isEmpty) return null;
-
-  // helper locale stile firstWhereOrNull
-  Offer? _firstWhereOrNull(bool Function(Offer) test) {
-    for (final o in _all) {
-      if (test(o)) return o;
-    }
-    return null;
-  }
-
-  // tentativi in ordine: id, vehicleId, code, nationalCode
-  return _firstWhereOrNull(
-           (o) => (o.id?.toString() == vehicleId) || (o.vehicleId?.toString() == vehicleId),
-         ) ??
-         _firstWhereOrNull(
-           (o) => (o.code?.toString() == vehicleId) || (o.nationalCode?.toString() == vehicleId),
-         );
-}
-
 
   @override
   Widget build(BuildContext context) {
@@ -171,9 +102,6 @@ Offer? _selectByVehicleId(String? vehicleId) {
                 StepsHeader(
                   currentStep: 2,
                   accent: kBrandDark,
-                    step2Title: _preselected?.group,        // ADD
-  step2Subtitle: _preselected?.name,      // ADD
-  step2Thumb: _preselected?.imageUrl,     // ADD
                   step1Pickup: _displayLocationName(
                         _dataJson!,
                         codeKey: 'PickUpLocation',
@@ -299,39 +227,17 @@ Offer? _selectByVehicleId(String? vehicleId) {
                             'Traffico all’estero',
                             'Opzioni facoltative disponibili al desk',
                           ],
-onChoose: () {
-  final selectedOffer = filtered[i];
-
-  // Partiamo dalla cfg (già passata da AdvancedSearchPage)
-  final cfgStep3 = (_cfg ?? InitialConfig.fromManual(
-        pickupCode: _dataJson!['PickUpLocation']?.toString() ?? '',
-        dropoffCode: _dataJson!['ReturnLocation']?.toString() ?? '',
-        startUtc: DateTime.parse(_dataJson!['PickUpDateTime'] as String),
-        endUtc: DateTime.parse(_dataJson!['ReturnDateTime'] as String),
-        age: null,
-        coupon: null,
-        channel: 'WEB_APP',
-        initialStep: 3,
-      ))
-      .copyWith(
-        step: 3,
-        vehicleId: selectedOffer.id ?? selectedOffer.vehicleId ?? selectedOffer.code,
-      )
-      .withOriginalFromSelf(); // assicura originalMap
-
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => ExtrasPage(
+                          onChoose: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ExtrasPage( // <-- usa la NUOVA pagina
         dataJson: _dataJson!,
-        selected: selectedOffer,
-        initialConfig: cfgStep3,          // <<<<<<<<<<<<<<<<<<<<<<<<
-        preselectedExtras: const [],
+        selected: filtered[i],
       ),
-    ),
-  );
-},
-
+                              ),
+                            );
+                          },
                         ),
                       );
                     },

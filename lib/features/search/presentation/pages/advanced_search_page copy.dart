@@ -1,5 +1,4 @@
 import 'package:car_rent_webui/car_rent_sdk/sdk.dart';
-import 'package:car_rent_webui/core/deeplink/initial_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -33,7 +32,7 @@ class _AdvancedSearchPageState extends State<AdvancedSearchPage> {
   DateTime? _end;
   int? _age;
   final _couponCtrl = TextEditingController();
-  InitialConfig? _cfg;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -42,21 +41,7 @@ class _AdvancedSearchPageState extends State<AdvancedSearchPage> {
       _pickup = args.pickup;
       _dropoff = args.pickup; // default: consegna = ritiro
     }
-
-    // ADD: gestisci l’avvio da deep-link (config già decodificata e passata dal router)
-    if (args is AdvancedSearchArgsFromConfig) {   // NEW
-      _cfg = args.cfg;
-      // Precompila solo ciò che serve alla UI locale; i codici location verranno usati nel repo
-      _start = _cfg!.start.toLocal();
-      _end   = _cfg!.end.toLocal();
-      _age   = _cfg!.age;
-      _couponCtrl.text = _cfg!.coupon ?? '';
-
-      // Avvio automatico della ricerca → salta validazioni del form
-      WidgetsBinding.instance.addPostFrameCallback((_) => _onSearch());
-    }
   }
-
 
   @override
   void dispose() {
@@ -167,28 +152,6 @@ class _AdvancedSearchPageState extends State<AdvancedSearchPage> {
   }
 
   Future<void> _onSearch() async {
-    // Se arrivo da deep-link, salto tutte le validazioni del form e uso la cfg
-    if (_cfg != null) { // NEW
-      try {
-        final resp = await _repo.createQuotationFromConfig(_cfg!); // usa codici pickup/dropoff da cfg
-        if (!mounted) return;
-        // Passa anche la cfg ai risultati (servirà per vehicleId e step)
-        Navigator.pushNamed(
-          context,
-          ResultsPage.routeName,
-          arguments: ResultsArgs(response: resp, cfg: _cfg), // NEW
-        );
-        return;
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore ricerca (cfg): $e')),
-        );
-        return;
-      }
-    }
-
-    // Altrimenti, comportamento classico con validazioni form
     if (_pickup == null || _dropoff == null || _start == null || _end == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Completa i campi obbligatori')),
@@ -217,38 +180,14 @@ class _AdvancedSearchPageState extends State<AdvancedSearchPage> {
         macro: null,
       );
       if (!mounted) return;
-      // CHANGE: ora i Results si aspettano anche (eventualmente) una cfg → passiamo null
-// Dopo aver ottenuto `resp` con successo…
-InitialConfig? cfgToPass = _cfg; // se arriviamo da deep-link la hai già
-
-if (cfgToPass == null) {
-  // Flusso manuale: costruiamo la config dal form
-  cfgToPass = InitialConfig.fromManual(
-    pickupCode: _pickup!.locationCode,
-    dropoffCode: _dropoff!.locationCode,
-    startUtc: _start!.toUtc(),
-    endUtc: _end!.toUtc(),
-    age: _age,
-    coupon: _couponCtrl.text.isEmpty ? null : _couponCtrl.text,
-    channel: 'WEB_APP',
-    initialStep: 2,
-  );
-}
-
-// Passiamo ResultsArgs con cfg popolata
-Navigator.pushNamed(
-  context,
-  ResultsPage.routeName,
-  arguments: ResultsArgs(response: resp, cfg: cfgToPass),
-);
-
+      Navigator.pushNamed(context, ResultsPage.routeName, arguments: resp);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Errore ricerca: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Errore ricerca: $e')));
     }
   }
-
 }
 
 /* ===========================

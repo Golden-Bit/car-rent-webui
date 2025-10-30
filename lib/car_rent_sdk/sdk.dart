@@ -92,6 +92,39 @@ class MyrentClient {
   }
 
   void close() => _client.close();
+
+  /// GET /api/v1/touroperator/vehicles
+  /// Facoltativo: legge il catalogo impaginato, utile per avere gli ID "sorgente".
+  Future<VehiclesPage> listVehicles({
+    String? location,
+    int skip = 0,
+    int pageSize = 25,
+  }) async {
+    final qs = <String, String>{
+      'skip': '$skip',
+      'page_size': '$pageSize',
+      if (location != null && location.isNotEmpty) 'location': location,
+    };
+    final uri = Uri.parse('$baseUrl/api/v1/touroperator/vehicles')
+        .replace(queryParameters: qs);
+    final res = await _client.get(uri, headers: _defaultHeaders);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      return VehiclesPage.fromJson(data);
+    }
+    throw ApiException(res.statusCode, res.body, uri);
+  }
+
+  /// GET /api/v1/touroperator/vehicles/{id}
+  Future<VehicleGroupRaw> getVehicleById(String vehicleId) async {
+    final uri = Uri.parse('$baseUrl/api/v1/touroperator/vehicles/$vehicleId');
+    final res = await _client.get(uri, headers: _defaultHeaders);
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      return VehicleGroupRaw.fromJson(data);
+    }
+    throw ApiException(res.statusCode, res.body, uri);
+  }
 }
 
 /// Helper: formatta DateTime in ISO8601 con suffisso Z
@@ -330,6 +363,7 @@ class VehMakeModel {
 }
 
 class BookingVehicle {
+  final String? id;
   // Codici
   final String Code;
   final String? CodeContext;
@@ -365,6 +399,7 @@ class BookingVehicle {
   final List<String> plates;    // <-- NEW
 
   BookingVehicle({
+    this.id,
     required this.Code,
     this.CodeContext,
     this.nationalCode,
@@ -390,6 +425,7 @@ class BookingVehicle {
   });
 
   factory BookingVehicle.fromJson(Map<String, dynamic> json) => BookingVehicle(
+        id: json['id']?.toString(),
         Code: json['Code'] as String,
         CodeContext: json['CodeContext'] as String?,
         nationalCode: json['nationalCode'] as String?,
@@ -427,6 +463,7 @@ class BookingVehicle {
       );
 
   Map<String, dynamic> toJson() => {
+        if (id != null) 'id': id,
         'Code': Code,
         if (CodeContext != null) 'CodeContext': CodeContext,
         if (nationalCode != null) 'nationalCode': nationalCode,
@@ -458,6 +495,7 @@ class BookingVehicle {
   // (facoltative) utility utili alla UI
   bool get isAutomatic => (transmission ?? '').toUpperCase() == 'A';
   bool get hasAircon => aircon == true;
+  int? get idAsInt => id == null ? null : int.tryParse(id!);
 }
 
 
@@ -868,4 +906,156 @@ class DamagesResponse {
       );
 
   Map<String, dynamic> toJson() => {'data': data.toJson()};
+}
+
+/// Item catalogo veicoli così come nel JSON originale.
+/// Manteniamo solo i campi principali + un contenitore per extra.
+class VehicleGroupRaw {
+  final String? id;                // normalizzato a String
+  final String? national_code;
+  final String international_code;
+  final String? description;
+  final String? display_name;
+  final String? vendor_macro;
+  final String? vehicle_type;
+  final int? seats;
+  final int? doors;
+  final String? transmission;
+  final String? fuel;
+  final bool? aircon;
+  final String? image_url;
+  final double? daily_rate;
+  final List<String> locations;
+  final List<String> plates;
+  final List<Map<String, dynamic>>? vehicle_parameters;
+  final Map<String, dynamic>? damages;
+
+  /// Per eventuali campi futuri non mappati
+  final Map<String, dynamic> extra;
+
+  VehicleGroupRaw({
+    required this.international_code,
+    this.id,
+    this.national_code,
+    this.description,
+    this.display_name,
+    this.vendor_macro,
+    this.vehicle_type,
+    this.seats,
+    this.doors,
+    this.transmission,
+    this.fuel,
+    this.aircon,
+    this.image_url,
+    this.daily_rate,
+    this.locations = const [],
+    this.plates = const [],
+    this.vehicle_parameters,
+    this.damages,
+    this.extra = const {},
+  });
+
+  factory VehicleGroupRaw.fromJson(Map<String, dynamic> json) {
+    final map = Map<String, dynamic>.from(json);
+    final knownKeys = {
+      'id','national_code','international_code','description','display_name',
+      'vendor_macro','vehicle_type','seats','doors','transmission','fuel',
+      'aircon','image_url','daily_rate','locations','plates',
+      'vehicle_parameters','damages'
+    };
+
+    // estrai extra
+    final leftovers = <String, dynamic>{};
+    map.forEach((k, v) {
+      if (!knownKeys.contains(k)) leftovers[k] = v;
+    });
+
+    return VehicleGroupRaw(
+      id: map['id']?.toString(),
+      national_code: map['national_code'] as String?,
+      international_code: map['international_code'] as String,
+      description: map['description'] as String?,
+      display_name: map['display_name'] as String?,
+      vendor_macro: map['vendor_macro'] as String?,
+      vehicle_type: map['vehicle_type'] as String?,
+      seats: (map['seats'] as num?)?.toInt(),
+      doors: (map['doors'] as num?)?.toInt(),
+      transmission: map['transmission'] as String?,
+      fuel: map['fuel'] as String?,
+      aircon: map['aircon'] as bool?,
+      image_url: map['image_url'] as String?,
+      daily_rate: (map['daily_rate'] as num?)?.toDouble(),
+      locations: (map['locations'] as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
+      plates: (map['plates'] as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
+      vehicle_parameters: (map['vehicle_parameters'] as List<dynamic>?)
+          ?.map((e) => Map<String, dynamic>.from(e as Map))
+          .toList(),
+      damages: (map['damages'] as Map?)?.cast<String, dynamic>(),
+      extra: leftovers,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        if (id != null) 'id': id,
+        if (national_code != null) 'national_code': national_code,
+        'international_code': international_code,
+        if (description != null) 'description': description,
+        if (display_name != null) 'display_name': display_name,
+        if (vendor_macro != null) 'vendor_macro': vendor_macro,
+        if (vehicle_type != null) 'vehicle_type': vehicle_type,
+        if (seats != null) 'seats': seats,
+        if (doors != null) 'doors': doors,
+        if (transmission != null) 'transmission': transmission,
+        if (fuel != null) 'fuel': fuel,
+        if (aircon != null) 'aircon': aircon,
+        if (image_url != null) 'image_url': image_url,
+        if (daily_rate != null) 'daily_rate': daily_rate,
+        if (locations.isNotEmpty) 'locations': locations,
+        if (plates.isNotEmpty) 'plates': plates,
+        if (vehicle_parameters != null) 'vehicle_parameters': vehicle_parameters,
+        if (damages != null) 'damages': damages,
+        ...extra,
+      };
+}
+
+class VehiclesPage {
+  final int total;
+  final int skip;
+  final int page_size;
+  final bool has_next;
+  final int? next_skip;
+  final int? prev_skip;
+  final List<VehicleGroupRaw> items;
+
+  VehiclesPage({
+    required this.total,
+    required this.skip,
+    required this.page_size,
+    required this.has_next,
+    this.next_skip,
+    this.prev_skip,
+    required this.items,
+  });
+
+  factory VehiclesPage.fromJson(Map<String, dynamic> json) => VehiclesPage(
+        total: (json['total'] as num).toInt(),
+        skip: (json['skip'] as num).toInt(),
+        page_size: (json['page_size'] as num).toInt(),
+        has_next: json['has_next'] as bool,
+        next_skip: (json['next_skip'] as num?)?.toInt(),
+        prev_skip: (json['prev_skip'] as num?)?.toInt(),
+        items: (json['items'] as List<dynamic>)
+            .map((e) => VehicleGroupRaw.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'total': total,
+        'skip': skip,
+        'page_size': page_size,
+        'has_next': has_next,
+        if (next_skip != null) 'next_skip': next_skip,
+        if (prev_skip != null) 'prev_skip': prev_skip,
+        'items': items.map((e) => e.toJson()).toList(),
+      };
 }
