@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:car_rent_webui/app.dart';
 import 'package:car_rent_webui/car_rent_sdk/sdk.dart';
 import 'package:car_rent_webui/core/deeplink/initial_config.dart';
 import 'package:car_rent_webui/features/results/models/offer_adapter.dart';
@@ -155,7 +156,7 @@ Offer? _selectByVehicleId(String? vehicleId) {
   Widget build(BuildContext context) {
     if (!_hydrated) {
       return const Scaffold(
-        appBar: TopNavBar(),
+        appBar: null,
         body: Center(child: CircularProgressIndicator()),
       );
     }
@@ -163,7 +164,7 @@ Offer? _selectByVehicleId(String? vehicleId) {
     final hasData = _dataJson != null && _all.isNotEmpty;
 
     return Scaffold(
-      appBar: const TopNavBar(),
+      appBar: AppUiFlags.showAppBarOf(context) ? const TopNavBar() : null,
       body: hasData
           ? Column(
               children: [

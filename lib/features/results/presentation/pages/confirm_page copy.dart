@@ -1,12 +1,13 @@
 import 'dart:convert';
+import 'package:car_rent_webui/app.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/widgets/top_nav_bar.dart';
 import '../../../../core/deeplink/initial_config.dart';
-import '../../../results/widgets/steps_header.dart';
-import '../../../results/models/offer_adapter.dart'; // <-- per group/name/image
+import '../../widgets/steps_header.dart';
+import '../../models/offer_adapter.dart'; // <-- per group/name/image
 
 /// Args per navigare a ConfirmPage con la config già risolta.
 /// Consigliato passare anche dataJson/selected/selectedExtras per uno StepHeader ricco.
@@ -132,7 +133,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const TopNavBar(),
+      appBar: AppUiFlags.showAppBarOf(context) ? const TopNavBar() : null,
       body: Column(
         children: [
           // ---------- STEPS HEADER (Step 4) ----------

@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:car_rent_webui/app.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -61,7 +62,7 @@ class _LongTermOfferPageState extends State<LongTermOfferPage> {
 
     return Scaffold(
       // ✅ Mostra la tua TopNavBar (niente freccia indietro)
-      appBar: const TopNavBar(),
+      appBar: AppUiFlags.showAppBarOf(context) ? const TopNavBar() : null,
       body: LayoutBuilder(
         builder: (context, c) {
           final maxW = c.maxWidth;

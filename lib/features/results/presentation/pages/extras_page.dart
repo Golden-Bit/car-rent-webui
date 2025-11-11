@@ -1,8 +1,9 @@
 import 'dart:math';
+import 'package:car_rent_webui/app.dart';
 import 'package:car_rent_webui/core/deeplink/initial_config.dart';
 import 'package:car_rent_webui/features/results/models/offer_adapter.dart';
 import 'package:car_rent_webui/features/results/widgets/steps_header.dart';
-import 'package:car_rent_webui/features/search/presentation/pages/confirm_page.dart';
+import 'package:car_rent_webui/features/results/presentation/pages/confirm_page.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -106,7 +107,7 @@ class _ExtrasPageState extends State<ExtrasPage> {
     final priceForHeader = _formatHeaderPrice(widget.dataJson, widget.selected);
 
     return Scaffold(
-      appBar: const TopNavBar(),
+      appBar: AppUiFlags.showAppBarOf(context) ? const TopNavBar() : null,
       body: Column(
         children: [
           // HEADER (Step 3)
@@ -687,7 +688,7 @@ class _PlanColumn extends StatelessWidget {
               const SizedBox(width: 10),
               Text('INFO',
                   style: TextStyle(
-                    color: Colors.pink.shade400,
+                    color: kBrandDark,
                     fontWeight: FontWeight.w700,
                     fontSize: 11,
                   )),
@@ -816,7 +817,7 @@ class _OptionalCard extends StatelessWidget {
               Text(
                 'INFO',
                 style: TextStyle(
-                  color: selected ? Colors.white : Colors.pink.shade400,
+                  color: selected ? Colors.white : kBrandDark,
                   fontWeight: FontWeight.w700,
                   fontSize: 11,
                 ),

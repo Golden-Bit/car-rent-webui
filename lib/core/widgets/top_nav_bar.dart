@@ -27,7 +27,7 @@ class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
             children: [
               // Simulated wordmark
               Text(
-                'noleggiare',
+                'Rentall',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 28,
@@ -35,7 +35,7 @@ class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
                 ).copyWith(letterSpacing: 0.5),
               ),
               const SizedBox(width: 16),
-              const Text('Happy rent!',
+              const Text('premium',
                   style: TextStyle(color: Colors.white70, fontSize: 12)),
 
               const Spacer(),

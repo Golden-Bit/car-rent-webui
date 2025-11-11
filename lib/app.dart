@@ -14,7 +14,7 @@ import 'features/results/presentation/pages/extras_page.dart';
 import 'features/long_term/presentation/pages/long_term_offer_page.dart';
 
 // Step 4 placeholder (conferma)
-import 'package:car_rent_webui/features/search/presentation/pages/confirm_page.dart';
+import 'package:car_rent_webui/features/results/presentation/pages/confirm_page.dart';
 
 // Deep link / Config iniziale
 import 'core/deeplink/initial_config.dart';
@@ -22,8 +22,8 @@ import 'core/deeplink/initial_config.dart';
 /// App root con supporto a deep-link iniziale (InitialConfig)
 class MyrentBookingApp extends StatefulWidget {
   final InitialConfig? initialConfig;
-
-  const MyrentBookingApp({super.key, this.initialConfig});
+final bool showAppBar; // NEW
+  const MyrentBookingApp({super.key, this.initialConfig, this.showAppBar = false});
 
   @override
   State<MyrentBookingApp> createState() => _MyrentBookingAppState();
@@ -50,7 +50,9 @@ class _MyrentBookingAppState extends State<MyrentBookingApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return AppUiFlags(                         // NEW
+      showAppBar: widget.showAppBar,
+      child: MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Myrent – Prenotazione',
       theme: buildAppTheme(),
@@ -127,7 +129,7 @@ class _MyrentBookingAppState extends State<MyrentBookingApp> {
 
       // Route di avvio
       initialRoute: '/',
-    );
+    ),);
   }
 }
 
@@ -152,4 +154,18 @@ Future<void> _driveFromConfig(BuildContext context, InitialConfig cfg) async {
   // Da qui in poi la flow prosegue dentro ResultsPage/ExtrasPage
   // (che usano `cfg` per selezionare il vehicleId e gli extra, e per raggiungere lo step richiesto).
   // Non forziamo altre navigation qui per evitare race con la navigazione della Advanced.
+}
+
+// NEW: scope UI flags
+class AppUiFlags extends InheritedWidget {
+  final bool showAppBar;
+  const AppUiFlags({super.key, required this.showAppBar, required Widget child})
+      : super(child: child);
+
+  static bool showAppBarOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<AppUiFlags>()?.showAppBar ?? false;
+
+  @override
+  bool updateShouldNotify(AppUiFlags oldWidget) =>
+      oldWidget.showAppBar != showAppBar;
 }

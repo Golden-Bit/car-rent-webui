@@ -9,7 +9,9 @@ import 'core/deeplink/initial_config.dart';
 void main() async {
 WidgetsFlutterBinding.ensureInitialized();
 final InitialConfig? cfg = _readConfigFromUrl();
-runApp(MyrentBookingApp(initialConfig: cfg));
+final bool showAppBar = _readAppBarFlagFromUrl(); // NEW
+runApp(MyrentBookingApp(initialConfig: cfg, showAppBar: showAppBar)); // NEW
+
 }
 
 
@@ -22,4 +24,16 @@ return InitialConfig.fromBase64Url(b64);
 } catch (_) {
 return null;
 }
+}
+
+bool _readAppBarFlagFromUrl() {            // NEW
+  if (!kIsWeb) return false;               // default: invisibile
+  try {
+    final v = Uri.base.queryParameters['appbar'];
+    if (v == null) return false;
+    final s = v.toLowerCase();
+    return s == '1' || s == 'true' || s == 'yes' || s == 'on';
+  } catch (_) {
+    return false;
+  }
 }
