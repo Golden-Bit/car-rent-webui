@@ -9,21 +9,41 @@ import 'features/search/presentation/pages/advanced_search_page.dart';
 // Results & Extras
 import 'features/results/presentation/pages/results_page.dart';
 import 'features/results/presentation/pages/extras_page.dart';
+import 'features/results/presentation/pages/confirm_page.dart';
 
 // Long term
 import 'features/long_term/presentation/pages/long_term_offer_page.dart';
 
-// Step 4 placeholder (conferma)
-import 'package:car_rent_webui/features/results/presentation/pages/confirm_page.dart';
-
 // Deep link / Config iniziale
 import 'core/deeplink/initial_config.dart';
 
+/// URL di default per la webapp dei risultati.
+/// (stesso valore usato in main.dart; va bene ridefinirlo per questa libreria)
+const String kDefaultResultsBaseUrl = 'https://www.mysite.com/result_page';
+
+/// Navigator globale, usato per il bootstrap da InitialConfig
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
 /// App root con supporto a deep-link iniziale (InitialConfig)
+///
+/// Gestisce **entrambi** i flussi:
+/// - flusso "search": home + advanced, con redirect esterno (o interno) verso /result_page
+/// - flusso "results": entry direct su /result_page?cfg=... con loader + lista risultati
 class MyrentBookingApp extends StatefulWidget {
   final InitialConfig? initialConfig;
-final bool showAppBar; // NEW
-  const MyrentBookingApp({super.key, this.initialConfig, this.showAppBar = false});
+  final bool showAppBar;       // controlla globalmente la visibilità della top bar
+  final String resultsBaseUrl; // base URL per il redirect verso la pagina risultati
+  final bool startOnResults;   // se true, bootstrap direttamente su ResultsPage
+  final bool isEmbedded;       // NUOVO: modalità embedded/iframe/webview
+
+  const MyrentBookingApp({
+    super.key,
+    this.initialConfig,
+    this.showAppBar = false,
+    this.resultsBaseUrl = kDefaultResultsBaseUrl,
+    this.startOnResults = false,
+    this.isEmbedded = false,   // default: non embedded
+  });
 
   @override
   State<MyrentBookingApp> createState() => _MyrentBookingAppState();
@@ -41,7 +61,10 @@ class _MyrentBookingAppState extends State<MyrentBookingApp> {
     // Se presente una InitialConfig, orchestri l’avvio dopo il primo frame
     if (widget.initialConfig != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        await _driveFromConfig(context, widget.initialConfig!);
+        await _driveFromConfig(
+          widget.initialConfig!,
+          widget.startOnResults,
+        );
       });
     }
 
@@ -50,122 +73,162 @@ class _MyrentBookingAppState extends State<MyrentBookingApp> {
 
   @override
   Widget build(BuildContext context) {
-    return AppUiFlags(                         // NEW
+    return AppUiFlags(
       showAppBar: widget.showAppBar,
+      resultsBaseUrl: widget.resultsBaseUrl,
+      isEmbedded: widget.isEmbedded, // ⬅️ passa il flag nel contesto
       child: MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Myrent – Prenotazione',
-      theme: buildAppTheme(),
+        navigatorKey: rootNavigatorKey,
+        debugShowCheckedModeBanner: false,
+        title: 'Myrent – Prenotazione',
+        theme: buildAppTheme(),
 
-      // Usiamo onGenerateRoute per gestire pagine con argomenti tipizzati
-      onGenerateRoute: (settings) {
-        switch (settings.name) {
-          // Root → Home (da cui si va ad Advanced)
-          case '/':
-            return MaterialPageRoute(
-              builder: (_) => const HomePage(),
-              settings: settings,
-            );
-
-          case AdvancedSearchPage.routeName:
-            // AdvancedSearchPage non necessita arg obbligatori,
-            // ma può ricevere AdvancedSearchArgs (es. da InitialConfig)
-            return MaterialPageRoute(
-              builder: (_) {
-                // Pass-through degli args (se presenti) direttamente alla page
-                final args = settings.arguments;
-                if (args is AdvancedSearchArgs) {
-                  // La pagina recupererà gli args da ModalRoute.of(context)!.settings.arguments
-                  // come già implementato nel tuo AdvancedSearchPage
-                  return const AdvancedSearchPage();
-                }
-                return const AdvancedSearchPage();
-              },
-              settings: settings,
-            );
-
-          case ResultsPage.routeName:
-            // ResultsPage legge QuotationResponse dagli arguments
-            return MaterialPageRoute(
-              builder: (_) => const ResultsPage(),
-              settings: settings,
-            );
-
-          case LongTermOfferPage.routeName:
-            return MaterialPageRoute(
-              builder: (_) => const LongTermOfferPage(),
-              settings: settings,
-            );
-
-          case ExtrasPage.routeName:
-            // Soluzione A: named route tip-safe con ExtrasPageArgs
-            final args = settings.arguments;
-            if (args is ExtrasPageArgs) {
+        // Usiamo onGenerateRoute per gestire pagine con argomenti tipizzati
+        onGenerateRoute: (settings) {
+          switch (settings.name) {
+            // Root → Home (da cui si va ad Advanced)
+            case '/':
               return MaterialPageRoute(
-                builder: (_) => ExtrasPage(
-                  dataJson: args.dataJson,
-                  selected: args.selected,
-                  preselectedExtras: args.preselectedExtras,
-                ),
+                builder: (_) => const HomePage(),
                 settings: settings,
               );
-            }
-            // Fallback difensivo: evita crash se la route viene usata male
-            return MaterialPageRoute(
-              builder: (_) => const SizedBox.shrink(),
-              settings: settings,
-            );
 
-          case ConfirmPage.routeName:
-            return MaterialPageRoute(
-              builder: (_) => const ConfirmPage(),
-              settings: settings,
-            );
-        }
+            case AdvancedSearchPage.routeName:
+              // AdvancedSearchPage non necessita arg obbligatori,
+              // ma può ricevere AdvancedSearchArgs / AdvancedSearchArgsFromConfig.
+              return MaterialPageRoute(
+                builder: (_) => const AdvancedSearchPage(),
+                settings: settings,
+              );
 
-        // Se non matcha nulla, lascia che Flutter gestisca (404 navigator)
-        return null;
-      },
+            case ResultsPage.routeName:
+              // ResultsPage si prende gli arguments da ModalRoute.of(context)
+              // e gestisce:
+              //  - ResultsArgs (quotation + cfg)
+              //  - QuotationResponse
+              //  - ResultsArgsFromConfig (solo cfg → chiama il backend)
+              return MaterialPageRoute(
+                builder: (_) => const ResultsPage(),
+                settings: settings,
+              );
 
-      // Route di avvio
-      initialRoute: '/',
-    ),);
+            case ExtrasPage.routeName:
+              // Se hai definito ExtrasPageArgs, puoi tipizzarlo qui.
+              final args = settings.arguments;
+              if (args is ExtrasPageArgs) {
+                return MaterialPageRoute(
+                  builder: (_) => ExtrasPage(
+                    dataJson: args.dataJson,
+                    selected: args.selected,
+                    preselectedExtras: args.preselectedExtras,
+                    initialConfig: args.initialConfig,
+                  ),
+                  settings: settings,
+                );
+              }
+              // Fallback difensivo: evita crash se la route viene usata male
+              return MaterialPageRoute(
+                builder: (_) => const SizedBox.shrink(),
+                settings: settings,
+              );
+
+            case ConfirmPage.routeName:
+              return MaterialPageRoute(
+                builder: (_) => const ConfirmPage(),
+                settings: settings,
+              );
+
+            case LongTermOfferPage.routeName:
+              return MaterialPageRoute(
+                builder: (_) => const LongTermOfferPage(),
+                settings: settings,
+              );
+          }
+
+          // Se non matcha nulla, lascia che Flutter gestisca (404 navigator)
+          return null;
+        },
+
+        // Route di avvio logica: il bootstrap spingerà poi la pagina giusta.
+        initialRoute: '/',
+      ),
+    );
   }
 }
 
 /// Orchestrazione iniziale basata su InitialConfig.
-/// - Naviga ad AdvancedSearchPage con i campi precompilati (via AdvancedSearchArgsFromConfig)
-/// - La Advanced esegue auto-submit → Results
-/// - Da Results si seleziona il veicolo per `vehicleId` e, se step>=3, si entra in Extras
-/// - Per step==4, Extras porta a ConfirmPage (placeholder) quando l’utente preme Prosegui.
-/// NOTE: le parti after-Results sono implementate nelle rispettive pagine (Results/Extras)
-///       usando la stessa InitialConfig (già prevista nella tua architettura).
-Future<void> _driveFromConfig(BuildContext context, InitialConfig cfg) async {
-  // 1) Vai alla Advanced con form precompilato; la pagina gestisce:
-  //    - pre-fill dei campi
-  //    - auto-submit (creazione quotazione)
-  //    - routing automatico verso Results
-  await Navigator.pushNamed(
-    context,
-    AdvancedSearchPage.routeName,
-    arguments: AdvancedSearchArgsFromConfig(cfg),
-  );
+///
+/// Se `startOnResults == false`:
+///   - Naviga ad AdvancedSearchPage con i campi precompilati (via AdvancedSearchArgsFromConfig).
+///   - AdvancedSearchPage esegue l’auto-submit e, invece di aprire una ResultsPage interna,
+///     effettua il **redirect** verso la pagina risultati (`resultsBaseUrl` + ?cfg=...).
+///
+/// Se `startOnResults == true`:
+///   - Naviga direttamente a ResultsPage, passandole la InitialConfig (ResultsArgsFromConfig),
+///     che mostrerà il loader e chiamerà `createQuotationFromConfig(cfg)`.
+Future<void> _driveFromConfig(
+  InitialConfig cfg,
+  bool startOnResults,
+) async {
+  final nav = rootNavigatorKey.currentState;
+  if (nav == null) return;
 
-  // Da qui in poi la flow prosegue dentro ResultsPage/ExtrasPage
-  // (che usano `cfg` per selezionare il vehicleId e gli extra, e per raggiungere lo step richiesto).
-  // Non forziamo altre navigation qui per evitare race con la navigazione della Advanced.
+  if (startOnResults) {
+    // Entry point diretto risultati: es. /result_page?cfg=...
+    await nav.pushNamed(
+      ResultsPage.routeName,
+      arguments: ResultsArgsFromConfig(cfg),
+    );
+  } else {
+    // Flusso classico: search → redirect verso result_page
+    await nav.pushNamed(
+      AdvancedSearchPage.routeName,
+      arguments: AdvancedSearchArgsFromConfig(cfg),
+    );
+  }
+
+  // Dopo il push, la pagina (Advanced o Results) gestisce da sola
+  // il proseguimento del flusso (redirect o extra/conferma).
 }
 
-// NEW: scope UI flags
+/// Scope UI flags (es. showAppBar, resultsBaseUrl, isEmbedded) tramite InheritedWidget
 class AppUiFlags extends InheritedWidget {
   final bool showAppBar;
-  const AppUiFlags({super.key, required this.showAppBar, required Widget child})
-      : super(child: child);
+  final String resultsBaseUrl;
+  final bool isEmbedded; // ⬅️ nuovo flag nel contesto
+
+  const AppUiFlags({
+    super.key,
+    required this.showAppBar,
+    required this.resultsBaseUrl,
+    required this.isEmbedded,
+    required Widget child,
+  }) : super(child: child);
 
   static bool showAppBarOf(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<AppUiFlags>()?.showAppBar ?? false;
+      context
+          .dependOnInheritedWidgetOfExactType<AppUiFlags>()
+          ?.showAppBar ??
+      false;
+
+  /// Restituisce la base URL della pagina risultati
+  /// (redirect_uri della query string oppure default).
+  static String resultsBaseUrlOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<AppUiFlags>()
+          ?.resultsBaseUrl ??
+      kDefaultResultsBaseUrl;
+
+  /// NUOVO: restituisce il flag embedded per le pagine
+  static bool isEmbeddedOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<AppUiFlags>()
+          ?.isEmbedded ??
+      false;
 
   @override
   bool updateShouldNotify(AppUiFlags oldWidget) =>
-      oldWidget.showAppBar != showAppBar;
+      oldWidget.showAppBar != showAppBar ||
+      oldWidget.resultsBaseUrl != resultsBaseUrl ||
+      oldWidget.isEmbedded != isEmbedded;
 }

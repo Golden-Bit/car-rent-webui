@@ -1,3 +1,10 @@
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html; // SOLO per Flutter Web
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:js' as js;     // SOLO per Flutter Web (postMessage verso il parent)
+
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 import 'package:car_rent_webui/app.dart';
 import 'package:car_rent_webui/car_rent_sdk/sdk.dart';
 import 'package:car_rent_webui/core/deeplink/initial_config.dart';
@@ -5,15 +12,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
-import '../../data/myrent_repository.dart';
+
 import '../../../../core/widgets/top_nav_bar.dart';
 import '../../../../theme/app_theme.dart';
 import '../widgets/location_dropdown.dart';
-import '../../../results/presentation/pages/results_page.dart';
 import '../../../../core/shapes/right_diagonal_panel_clipper.dart';
 
-
 const String kMapAsset = 'assets/images/map_placeholder.png';
+
+/// Path della rotta risultati interna alla webapp
+/// (deve puntare alla pagina Flutter che gestisce i risultati)
+const String kResultsRoutePath = '/result_page';
 
 // ADD: gutter orizzontale responsivo (sx/dx)
 double _hGutter(double w) {
@@ -21,8 +30,28 @@ double _hGutter(double w) {
   if (w >= 1366) return 48;
   if (w >= 1200) return 40;
   if (w >= 1024) return 32;
-  if (w >= 768)  return 24;
+  if (w >= 768) return 24;
   return 16;
+}
+
+/// Costruisce la base URL di default per il redirect risultati
+/// quando **non** è stato passato un redirect_uri esterno.
+///
+/// Esempi:
+/// - pagina aperta su http://127.0.0.1:5556/#/advanced
+///   → base = http://127.0.0.1:5556/result_page
+///
+/// - pagina aperta su https://partner.com/widget
+///   → base = https://partner.com/result_page
+String _buildDefaultResultsBaseUrlFromCurrentPage() {
+  try {
+    // origin = "scheme://host[:port]" (senza path, query, hash)
+    final origin = html.window.location.origin;
+    return '$origin$kResultsRoutePath';
+  } catch (_) {
+    // Fallback di sicurezza: usa la costante globale dell'app
+    return kDefaultResultsBaseUrl;
+  }
 }
 
 class AdvancedSearchArgs {
@@ -39,14 +68,12 @@ class AdvancedSearchPage extends StatefulWidget {
 }
 
 class _AdvancedSearchPageState extends State<AdvancedSearchPage> {
-  final _repo = MyrentRepository();
-
   Location? _pickup;
   Location? _dropoff;
   DateTime? _start;
   DateTime? _end;
   int? _age;
-  final _couponCtrl = TextEditingController();
+  final TextEditingController _couponCtrl = TextEditingController();
   InitialConfig? _cfg;
 
   @override
@@ -63,12 +90,14 @@ class _AdvancedSearchPageState extends State<AdvancedSearchPage> {
     if (args is AdvancedSearchArgsFromConfig) {
       _cfg = args.cfg;
       _start = _cfg!.start.toLocal();
-      _end   = _cfg!.end.toLocal();
-      _age   = _cfg!.age;
+      _end = _cfg!.end.toLocal();
+      _age = _cfg!.age;
       _couponCtrl.text = _cfg!.coupon ?? '';
 
-      // Avvio automatico della ricerca → salta le validazioni del form
-      WidgetsBinding.instance.addPostFrameCallback((_) => _onSearch());
+      // Avvio automatico della ricerca → ora fa redirect diretto alla webapp risultati
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _onSearch();
+      });
     }
   }
 
@@ -77,6 +106,93 @@ class _AdvancedSearchPageState extends State<AdvancedSearchPage> {
     _couponCtrl.dispose();
     super.dispose();
   }
+
+  /// Esegue il redirect verso la webapp dei risultati
+  ///
+  /// Caso 1: è stato passato un `redirect_uri` all'iframe/widget.
+  ///   - AppUiFlags.resultsBaseUrlOf(context) contiene l'URL di quella pagina
+  ///     (es. https://partner.com/embedded-results o https://host/#/result_page).
+  ///
+  /// Caso 2: **non** è stato passato alcun `redirect_uri`.
+  ///   - In questo caso, MyrentBookingApp ha usato kDefaultResultsBaseUrl
+  ///     come valore di ripiego.
+  ///   - Qui lo intercettiamo: se il valore è ancora quello di default,
+  ///     costruiamo la base a partire dall'URL corrente della pagina,
+  ///     puntando sempre alla rotta interna `/result_page`.
+  /// Esegue il redirect verso la webapp dei risultati **oppure**
+  /// emette l'URL al parent (iframe / WebView) se l'app è in modalità embedded.
+  void _redirectToResults(InitialConfig cfg) {
+    // 0) Verifico se siamo in modalità embedded
+    final bool isEmbedded = AppUiFlags.isEmbeddedOf(context);
+
+    // 1) Base URL letta dallo scope dell'app (può venire da redirect_uri)
+    final String appBaseUrl = AppUiFlags.resultsBaseUrlOf(context);
+
+    // 2) Se appBaseUrl è la costante di default (nessun redirect_uri passato),
+    //    allora usiamo l'origin della pagina corrente + /result_page.
+    //    Altrimenti, rispettiamo il redirect_uri personalizzato.
+    final String effectiveBaseUrl =
+        (appBaseUrl.isEmpty || appBaseUrl == kDefaultResultsBaseUrl)
+            ? _buildDefaultResultsBaseUrlFromCurrentPage()
+            : appBaseUrl;
+
+    // 3) Serializzo la config in base64 url-safe
+    final String cfgParam = cfg.toBase64Url();
+
+    // 4) Provo a parsare la base URL; se qualcosa va storto,
+    //    ricado comunque sul valore costruito a partire dalla pagina corrente.
+    Uri baseUri;
+    try {
+      baseUri = Uri.parse(effectiveBaseUrl);
+    } catch (_) {
+      baseUri = Uri.parse(_buildDefaultResultsBaseUrlFromCurrentPage());
+    }
+
+    // 5) Mergiamo la query esistente con il nuovo parametro cfg
+    final newQuery = <String, String>{
+      ...baseUri.queryParameters, // mantiene eventuali query già presenti
+      'cfg': cfgParam,
+    };
+
+    // 6) Costruiamo l'URI finale con la nuova query
+    final redirectUri = baseUri.replace(queryParameters: newQuery);
+    final String finalUrl = redirectUri.toString();
+
+    // 7) Comportamento diverso se embedded o no
+    if (isEmbedded) {
+      // 🔄 Modalità embedded: niente redirect, invio l'URL al parent
+      _postMessageToParent(finalUrl);
+    } else {
+      // 🌐 Modalità normale: redirect del browser
+      html.window.location.assign(finalUrl);
+    }
+  }
+
+  /// Invia l'URL finale al parent (pagina che contiene l'iframe / WebView)
+  /// tramite postMessage JavaScript.
+  ///
+  /// Lato host (es. HTML):
+  ///   <iframe src=".../?is_embedded=1"></iframe>
+  ///   <script>
+  ///     window.addEventListener("message", evt => {
+  ///       console.log("URL ricevuto:", evt.data);
+  ///       // window.location.href = evt.data; // se vuoi redirigere l'host
+  ///     });
+  ///   </script>
+  void _postMessageToParent(String url) {
+    if (!kIsWeb) return;
+
+    try {
+      // window.parent.postMessage(url, "*")
+      final parent = js.context['parent'];
+      if (parent != null) {
+        parent.callMethod('postMessage', [url, '*']);
+      }
+    } catch (_) {
+      // in caso di errore (es. non in iframe), non facciamo nulla
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -112,72 +228,76 @@ class _AdvancedSearchPageState extends State<AdvancedSearchPage> {
               ),
             ),
 
-            // 3) Pannello bianco destro con bordo diagonale
-// 3) Pannello destro con immagine di sfondo (bordo diagonale)
-Positioned.fill(
-  child: IgnorePointer(
-    child: ClipPath(
-      clipper: const RightDiagonalPanelClipper(
-        panelWidth: panelWidth,
-        insetTop: diagInsetTop,
-      ),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage(kMapAsset),
-            fit: BoxFit.cover,
-            alignment: Alignment.center,
-            filterQuality: FilterQuality.medium,
-          ),
-        ),
-      ),
-    ),
-  ),
-),
-
+            // 3) Pannello destro con immagine di sfondo (bordo diagonale)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ClipPath(
+                  clipper: const RightDiagonalPanelClipper(
+                    panelWidth: panelWidth,
+                    insetTop: diagInsetTop,
+                  ),
+                  child: const DecoratedBox(
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        image: AssetImage(kMapAsset),
+                        fit: BoxFit.cover,
+                        alignment: Alignment.center,
+                        filterQuality: FilterQuality.medium,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
 
             // 4) Contenuti
             Row(
               children: [
                 // --- COLONNA SINISTRA (FORM) ---
-Padding(
-  padding: EdgeInsets.only(left: _hGutter(size.width)),
-  child: SizedBox(
-    width: leftAreaWidth, // lasciamo la stessa width; il Padding crea lo spazio
-    child: SingleChildScrollView(
-      padding: EdgeInsets.only(
-        top: size.height * 0.18,
-        bottom: 40,
-        right: 16, // (opzionale) un filo di respiro a destra
-      ),
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: formMaxWidth),
-                        child: _FormGrid(
-                          isWide: true, // <-- 2 colonne
-                          pickup: _pickup,
-                          dropoff: _dropoff,
-                          start: _start,
-                          end: _end,
-                          age: _age,
-                          couponCtrl: _couponCtrl,
-                          onPickupChanged: (l) => setState(() => _pickup = l),
-                          onDropoffChanged: (l) => setState(() => _dropoff = l),
-                          onStartChanged: (d) => setState(() => _start = d),
-                          onEndChanged: (d) => setState(() => _end = d),
-                          onAgeChanged: (v) => setState(() => _age = v),
-                          onSubmit: _onSearch,
+                Padding(
+                  padding: EdgeInsets.only(left: _hGutter(size.width)),
+                  child: SizedBox(
+                    width: leftAreaWidth, // il Padding crea lo spazio a sx
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.only(
+                        top: size.height * 0.18,
+                        bottom: 40,
+                        right: 16, // un filo di respiro a destra
+                      ),
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(maxWidth: formMaxWidth),
+                          child: _FormGrid(
+                            isWide: true, // <-- 2 colonne
+                            pickup: _pickup,
+                            dropoff: _dropoff,
+                            start: _start,
+                            end: _end,
+                            age: _age,
+                            couponCtrl: _couponCtrl,
+                            onPickupChanged: (l) =>
+                                setState(() => _pickup = l),
+                            onDropoffChanged: (l) =>
+                                setState(() => _dropoff = l),
+                            onStartChanged: (d) =>
+                                setState(() => _start = d),
+                            onEndChanged: (d) => setState(() => _end = d),
+                            onAgeChanged: (v) => setState(() => _age = v),
+                            onSubmit: () => _onSearch(),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                )),
+                ),
 
                 // --- COLONNA DESTRA (INFO/PLACEHOLDER) ---
                 SizedBox(
                   width: panelWidth,
-                  child: Center(child: _LocationInfoCard(location: _pickup)),
+                  child: Center(
+                    child: _LocationInfoCard(location: _pickup),
+                  ),
                 ),
               ],
             ),
@@ -187,14 +307,9 @@ Padding(
     }
 
     // ---- LAYOUT STACKED (pannello destro sotto, bordo orizzontale) ----
-    // In stacked la UI è dentro due sezioni verticali:
-    //  - Section 1 (arancione): form a UNA colonna responsivo
-    //  - Section 2 (bianco): info card (il "pannello destro" va sotto)
-    //final safeW = size.width;
-    // Form single-column, usa fino a 760 ma con padding laterale
-    //final formMaxWidthMobile = (safeW - 32).clamp(260.0, 760.0);
-final gutter = _hGutter(size.width);
-final formMaxWidthMobile = (size.width - gutter * 2).clamp(260.0, 760.0);
+    final gutter = _hGutter(size.width);
+    final formMaxWidthMobile =
+        (size.width - gutter * 2).clamp(260.0, 760.0);
 
     return Scaffold(
       appBar: AppUiFlags.showAppBarOf(context) ? const TopNavBar() : null,
@@ -203,100 +318,97 @@ final formMaxWidthMobile = (size.width - gutter * 2).clamp(260.0, 760.0);
         child: Column(
           children: [
             // Sezione arancione (form stacked 1 col)
-Container(
-  color: primary,
-  width: double.infinity,
-  // CHANGE: gutter dinamico a sx/dx
-  padding: EdgeInsets.fromLTRB(gutter, 28, gutter, 24),
-  child: Align(
-    alignment: Alignment.topCenter,
-    child: ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: formMaxWidthMobile),
-      child: _FormGrid(
-        isWide: false,
-
+            Container(
+              color: primary,
+              width: double.infinity,
+              padding: EdgeInsets.fromLTRB(gutter, 28, gutter, 24),
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints:
+                      BoxConstraints(maxWidth: formMaxWidthMobile),
+                  child: _FormGrid(
+                    isWide: false,
                     pickup: _pickup,
                     dropoff: _dropoff,
                     start: _start,
                     end: _end,
                     age: _age,
                     couponCtrl: _couponCtrl,
-                    onPickupChanged: (l) => setState(() => _pickup = l),
-                    onDropoffChanged: (l) => setState(() => _dropoff = l),
-                    onStartChanged: (d) => setState(() => _start = d),
-                    onEndChanged: (d) => setState(() => _end = d),
-                    onAgeChanged: (v) => setState(() => _age = v),
-                    onSubmit: _onSearch,
+                    onPickupChanged: (l) =>
+                        setState(() => _pickup = l),
+                    onDropoffChanged: (l) =>
+                        setState(() => _dropoff = l),
+                    onStartChanged: (d) =>
+                        setState(() => _start = d),
+                    onEndChanged: (d) =>
+                        setState(() => _end = d),
+                    onAgeChanged: (v) =>
+                        setState(() => _age = v),
+                    onSubmit: () => _onSearch(),
                   ),
                 ),
               ),
             ),
 
-            // Sezione bianca (era il pannello destro): bordo orizzontale (niente diagonale)
-Container(
-  width: double.infinity,
-  padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
-  decoration: BoxDecoration(
-    image: DecorationImage(
-      image: AssetImage(kMapAsset),
-      fit: BoxFit.cover,
-      alignment: Alignment.center,
-      filterQuality: FilterQuality.medium,
-    ),
-  ),
-  child: Center(
-    child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 560),
-      child: _LocationInfoCard(location: _pickup),
-    ),
-  ),
-),
+            // Sezione bianca (ex pannello destro, ora sotto)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage(kMapAsset),
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                  filterQuality: FilterQuality.medium,
+                ),
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: _LocationInfoCard(location: _pickup),
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
+  /// NUOVA LOGICA: non chiamiamo più l'API di quotazione qui,
+  /// ma costruiamo una InitialConfig e facciamo redirect alla webapp risultati.
   Future<void> _onSearch() async {
-    // Flusso da deep-link: salta validazioni form e usa la cfg
-    if (_cfg != null) {
-      try {
-        final resp = await _repo.createQuotationFromConfig(_cfg!);
-        if (!mounted) return;
-        Navigator.pushNamed(
-          context,
-          ResultsPage.routeName,
-          arguments: ResultsArgs(response: resp, cfg: _cfg),
-        );
-        return;
-      } catch (e) {
-        if (!mounted) return;
+    // 1. Determina la InitialConfig da usare
+
+    // Caso A: arrivo da deep-link → ho già _cfg
+    InitialConfig? cfgToUse = _cfg;
+
+    // Caso B: l'utente compila il form manualmente
+    if (cfgToUse == null) {
+      // Validazioni form standard
+      if (_pickup == null ||
+          _dropoff == null ||
+          _start == null ||
+          _end == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore ricerca (cfg): $e')),
+          const SnackBar(content: Text('Completa i campi obbligatori')),
         );
         return;
       }
-    }
 
-    // Validazioni form standard
-    if (_pickup == null || _dropoff == null || _start == null || _end == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Completa i campi obbligatori')),
-      );
-      return;
-    }
+      if (_age == null || _age! <= 18) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Inserisci un’età valida (maggiore di 18).'),
+          ),
+        );
+        return;
+      }
 
-    if (_age == null || _age! <= 18) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Inserisci un’età valida (maggiore di 18).'),
-        ),
-      );
-      return;
-    }
-
-    try {
-      final resp = await _repo.createQuotation(
+      // Costruisci InitialConfig (flusso manuale)
+      cfgToUse = InitialConfig.fromManual(
         pickupCode: _pickup!.locationCode,
         dropoffCode: _dropoff!.locationCode,
         startUtc: _start!.toUtc(),
@@ -304,35 +416,12 @@ Container(
         age: _age,
         coupon: _couponCtrl.text.isEmpty ? null : _couponCtrl.text,
         channel: 'WEB_APP',
-        macro: null,
+        initialStep: 2, // step di ingresso nella webapp risultati
       );
-      if (!mounted) return;
-
-      // Costruisci InitialConfig se non presente (flusso manuale)
-      InitialConfig? cfgToPass = _cfg;
-      if (cfgToPass == null) {
-        cfgToPass = InitialConfig.fromManual(
-          pickupCode: _pickup!.locationCode,
-          dropoffCode: _dropoff!.locationCode,
-          startUtc: _start!.toUtc(),
-          endUtc: _end!.toUtc(),
-          age: _age,
-          coupon: _couponCtrl.text.isEmpty ? null : _couponCtrl.text,
-          channel: 'WEB_APP',
-          initialStep: 2,
-        );
-      }
-
-      Navigator.pushNamed(
-        context,
-        ResultsPage.routeName,
-        arguments: ResultsArgs(response: resp, cfg: cfgToPass),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Errore ricerca: $e')));
     }
+
+    // 2. Redirect verso la webapp risultati, passando tutta la configurazione
+    _redirectToResults(cfgToUse);
   }
 }
 
@@ -421,7 +510,8 @@ class _FormGrid extends StatelessWidget {
               Expanded(
                 child: _FieldLabel(
                   label: 'Data di ritiro',
-                  help: 'Seleziona data e ora. Fuori orario: +40€ (demo).',
+                  help:
+                      'Seleziona data e ora. Fuori orario: +40€ (demo).',
                   labelColor: Colors.white,
                   iconColor: Colors.white70,
                   child: SizedBox(
@@ -437,7 +527,8 @@ class _FormGrid extends StatelessWidget {
               Expanded(
                 child: _FieldLabel(
                   label: 'Data di consegna',
-                  help: 'La riconsegna deve essere successiva al ritiro.',
+                  help:
+                      'La riconsegna deve essere successiva al ritiro.',
                   labelColor: Colors.white,
                   iconColor: Colors.white70,
                   child: SizedBox(
@@ -460,7 +551,10 @@ class _FormGrid extends StatelessWidget {
                   labelColor: Colors.white,
                   child: SizedBox(
                     height: 56,
-                    child: _AgeNumberField(value: age, onChanged: onAgeChanged),
+                    child: _AgeNumberField(
+                      value: age,
+                      onChanged: onAgeChanged,
+                    ),
                   ),
                 ),
               ),
@@ -473,7 +567,9 @@ class _FormGrid extends StatelessWidget {
                     height: 56,
                     child: TextField(
                       controller: couponCtrl,
-                      decoration: const InputDecoration(hintText: 'codice'),
+                      decoration: const InputDecoration(
+                        hintText: 'codice',
+                      ),
                     ),
                   ),
                 ),
@@ -489,7 +585,8 @@ class _FormGrid extends StatelessWidget {
                 style: FilledButton.styleFrom(
                   backgroundColor: kCtaGreen,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 28),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -539,7 +636,8 @@ class _FormGrid extends StatelessWidget {
         const SizedBox(height: 14),
         _FieldLabel(
           label: 'Data di ritiro',
-          help: 'Seleziona data e ora. Fuori orario: +40€ (demo).',
+          help:
+              'Seleziona data e ora. Fuori orario: +40€ (demo).',
           labelColor: Colors.white,
           iconColor: Colors.white70,
           child: SizedBox(
@@ -553,7 +651,8 @@ class _FormGrid extends StatelessWidget {
         const SizedBox(height: 14),
         _FieldLabel(
           label: 'Data di consegna',
-          help: 'La riconsegna deve essere successiva al ritiro.',
+          help:
+              'La riconsegna deve essere successiva al ritiro.',
           labelColor: Colors.white,
           iconColor: Colors.white70,
           child: SizedBox(
@@ -570,7 +669,10 @@ class _FormGrid extends StatelessWidget {
           labelColor: Colors.white,
           child: SizedBox(
             height: 56,
-            child: _AgeNumberField(value: age, onChanged: onAgeChanged),
+            child: _AgeNumberField(
+              value: age,
+              onChanged: onAgeChanged,
+            ),
           ),
         ),
         const SizedBox(height: 14),
@@ -581,7 +683,9 @@ class _FormGrid extends StatelessWidget {
             height: 56,
             child: TextField(
               controller: couponCtrl,
-              decoration: const InputDecoration(hintText: 'codice'),
+              decoration: const InputDecoration(
+                hintText: 'codice',
+              ),
             ),
           ),
         ),
@@ -592,7 +696,8 @@ class _FormGrid extends StatelessWidget {
             style: FilledButton.styleFrom(
               backgroundColor: kCtaGreen,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 28),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 28),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -640,7 +745,8 @@ class _AgeNumberFieldState extends State<_AgeNumberField> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.value != widget.value &&
         (widget.value?.toString() ?? '') != _ctrl.text) {
-      _ctrl.text = widget.value == null ? '' : widget.value.toString();
+      _ctrl.text =
+          widget.value == null ? '' : widget.value.toString();
     }
   }
 
@@ -654,7 +760,8 @@ class _AgeNumberFieldState extends State<_AgeNumberField> {
     final parsed = int.tryParse(v);
     setState(() {
       if (parsed == null) {
-        _error = null; // campo vuoto: nessun errore, lo gestirà la submit
+        _error =
+            null; // campo vuoto: nessun errore, lo gestirà la submit
       } else if (parsed <= 18) {
         _error = 'L’età deve essere > 18';
       } else {
@@ -705,7 +812,8 @@ class _FieldLabel extends StatelessWidget {
           children: [
             Text(
               label,
-              style: TextStyle(color: lc, fontWeight: FontWeight.w600),
+              style:
+                  TextStyle(color: lc, fontWeight: FontWeight.w600),
             ),
             if (help != null)
               Padding(
@@ -734,7 +842,8 @@ class _DateTimePicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = TextEditingController(
       text: (value != null)
-          ? DateFormat('dd/MM/yyyy HH:mm').format(value!.toLocal())
+          ? DateFormat('dd/MM/yyyy HH:mm')
+              .format(value!.toLocal())
           : '',
     );
 
@@ -776,15 +885,18 @@ class _DateTimePicker extends StatelessWidget {
                 hourMinuteTextColor: Colors.black87,
                 hourMinuteShape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
-                  side: const BorderSide(color: Color(0x1F000000)),
+                  side: const BorderSide(
+                      color: Color(0x1F000000)),
                 ),
                 dayPeriodColor: base.colorScheme.primary,
                 dayPeriodTextColor: Colors.black87,
                 dayPeriodShape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
-                  side: const BorderSide(color: Color(0x1F000000)),
+                  side: const BorderSide(
+                      color: Color(0x1F000000)),
                 ),
-                helpTextStyle: const TextStyle(color: Colors.black87),
+                helpTextStyle:
+                    const TextStyle(color: Colors.black87),
                 entryModeIconColor: Colors.black54,
               ),
             ),
@@ -805,7 +917,8 @@ class _DateTimePicker extends StatelessWidget {
         // Time picker
         final time = await showTimePicker(
           context: context,
-          initialTime: TimeOfDay.fromDateTime(value ?? now),
+          initialTime:
+              TimeOfDay.fromDateTime(value ?? now),
           builder: (ctx, child) => themed(ctx, child),
         );
 
@@ -848,13 +961,18 @@ class _LocationInfoCard extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 420),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   Icon(
-                    location!.isAirport ? Icons.local_airport : Icons.location_city,
-                    color: Theme.of(context).colorScheme.primary,
+                    location!.isAirport
+                        ? Icons.local_airport
+                        : Icons.location_city,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primary,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -866,17 +984,22 @@ class _LocationInfoCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const Icon(Icons.close, color: Colors.black45),
+                  const Icon(Icons.close,
+                      color: Colors.black45),
                 ],
               ),
               const SizedBox(height: 8),
-              if (location!.email != null) Text(location!.email!),
+              if (location!.email != null)
+                Text(location!.email!),
               if (location!.telephoneNumber != null)
-                Text('phone: ${location!.telephoneNumber!}'),
+                Text(
+                    'phone: ${location!.telephoneNumber!}'),
               if (location!.locationAddress != null)
                 Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Text(location!.locationAddress!),
+                  padding:
+                      const EdgeInsets.only(top: 8.0),
+                  child: Text(
+                      location!.locationAddress!),
                 ),
             ],
           ),

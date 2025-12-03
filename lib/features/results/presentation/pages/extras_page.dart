@@ -13,11 +13,13 @@ class ExtrasPageArgs {
   final Map<String, dynamic> dataJson;
   final Offer selected;
   final List<InitialExtra> preselectedExtras;
+  final InitialConfig? initialConfig; // NEW
 
   const ExtrasPageArgs({
     required this.dataJson,
     required this.selected,
     this.preselectedExtras = const [],
+    this.initialConfig, // NEW
   });
 }
 /// Brand
@@ -93,6 +95,40 @@ class _ExtrasPageState extends State<ExtrasPage> {
   // NEW: formato stringa per StepsHeader
   String get _extrasTotalFmt => _formatMoney(_extrasTotalRaw, 'EUR');
 
+  // NEW: nome del piano assicurativo selezionato per l'header
+  String? get _insuranceNameForHeader {
+    switch (_selectedPlan) {
+      case 0:
+        return 'GOLD';
+      case 1:
+        return 'PLATINUM';
+      case 2:
+        return 'PREMIUM';
+      default:
+        return null; // nessun piano selezionato
+    }
+  }
+
+  // NEW: totale assicurazione per l'intero noleggio, formattato
+  String? get _insuranceTotalFmtForHeader {
+    double? pricePerDay;
+    switch (_selectedPlan) {
+      case 0:
+        pricePerDay = 29.0;
+        break;
+      case 1:
+        pricePerDay = 42.0;
+        break;
+      case 2:
+        pricePerDay = 46.20;
+        break;
+      default:
+        return null;
+    }
+    final total = pricePerDay * _rentalDays;
+    return _formatMoney(total, 'EUR');
+  }
+
   @override
   void initState() {
     super.initState();
@@ -102,64 +138,70 @@ class _ExtrasPageState extends State<ExtrasPage> {
     _applyPreselectedExtras(widget.preselectedExtras); // NEW
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final priceForHeader = _formatHeaderPrice(widget.dataJson, widget.selected);
+@override
+Widget build(BuildContext context) {
+  final priceForHeader = _formatHeaderPrice(widget.dataJson, widget.selected);
 
-    return Scaffold(
-      appBar: AppUiFlags.showAppBarOf(context) ? const TopNavBar() : null,
-      body: Column(
-        children: [
-          // HEADER (Step 3)
-          StepsHeader(
-            currentStep: 3,
-            accent: kBrandDark,
-  // NEW ↓ (lista etichette + totale formattato)
-  step3Extras: _selectedOptionals.map((i) => _optionals[i].title).toList(),
-  step3ExtrasTotal: _extrasTotalFmt,
-            step1Pickup: _displayLocationName(
-                  widget.dataJson,
-                  codeKey: 'PickUpLocation',
-                  nameCandidates: const [
-                    'PickUpLocationName',
-                    'pickupName',
-                    'PickupName',
-                    'PickupCity',
-                    'pickupCity'
-                  ],
-                ) ??
-                widget.dataJson['PickUpLocation']?.toString(),
-            step1Dropoff: _displayLocationName(
-                  widget.dataJson,
-                  codeKey: 'ReturnLocation',
-                  nameCandidates: const [
-                    'ReturnLocationName',
-                    'returnName',
-                    'ReturnCity',
-                    'returnCity'
-                  ],
-                ) ??
-                widget.dataJson['ReturnLocation']?.toString(),
-            step1Start: _fmtDate(widget.dataJson['PickUpDateTime']?.toString()),
-            step1End: _fmtDate(widget.dataJson['ReturnDateTime']?.toString()),
-            step2Title: widget.selected.group ?? 'Auto',
-            step2Subtitle: widget.selected.name ?? '',
-            step2Thumb: widget.selected.imageUrl,
-            step2Price: priceForHeader,
-            onTapStep: (n) {
-              if (n == 2) {
-                Navigator.of(context).maybePop(); // 3 -> 2
-              } else if (n == 1) {
-                // 3 -> 2 -> 1 (pop doppio su frame successivo per sicurezza)
-                Navigator.of(context).maybePop();
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (Navigator.of(context).canPop()) {
-                    Navigator.of(context).maybePop();
-                  }
-                });
-              }
-            },
-          ),
+  return Scaffold(
+    appBar: AppUiFlags.showAppBarOf(context) ? const TopNavBar() : null,
+    body: Column(
+      children: [
+        // HEADER (Step 3)
+        StepsHeader(
+          currentStep: 3,
+          accent: kBrandDark,
+
+          // NEW ↓ assicurazione selezionata
+          step3InsuranceName: _insuranceNameForHeader,
+          step3InsuranceTotal: _insuranceTotalFmtForHeader,
+
+          // NEW ↓ (lista etichette + totale formattato) – come già avevi
+          step3Extras: _selectedOptionals.map((i) => _optionals[i].title).toList(),
+          step3ExtrasTotal: _extrasTotalFmt,
+
+          step1Pickup: _displayLocationName(
+                widget.dataJson,
+                codeKey: 'PickUpLocation',
+                nameCandidates: const [
+                  'PickUpLocationName',
+                  'pickupName',
+                  'PickupName',
+                  'PickupCity',
+                  'pickupCity'
+                ],
+              ) ??
+              widget.dataJson['PickUpLocation']?.toString(),
+          step1Dropoff: _displayLocationName(
+                widget.dataJson,
+                codeKey: 'ReturnLocation',
+                nameCandidates: const [
+                  'ReturnLocationName',
+                  'returnName',
+                  'ReturnCity',
+                  'returnCity'
+                ],
+              ) ??
+              widget.dataJson['ReturnLocation']?.toString(),
+          step1Start: _fmtDate(widget.dataJson['PickUpDateTime']?.toString()),
+          step1End: _fmtDate(widget.dataJson['ReturnDateTime']?.toString()),
+          step2Title: widget.selected.group ?? 'Auto',
+          step2Subtitle: widget.selected.name ?? '',
+          step2Thumb: widget.selected.imageUrl,
+          step2Price: priceForHeader,
+          onTapStep: (n) {
+            if (n == 2) {
+              Navigator.of(context).maybePop(); // 3 -> 2
+            } else if (n == 1) {
+              // 3 -> 2 -> 1 (pop doppio su frame successivo per sicurezza)
+              Navigator.of(context).maybePop();
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).maybePop();
+                }
+              });
+            }
+          },
+        ),
 
           // CONTENUTO (Sliver: niente nested scrollables/problematic Flex)
           Expanded(
@@ -309,9 +351,12 @@ Navigator.pushNamed(
     cfg: cfgForConfirm,
     dataJson: widget.dataJson,
     selected: widget.selected,
-    selectedExtras: extras, // la lista InitialExtra costruita al “Prosegui”
+    selectedExtras: extras,                 // optional/accessori
+    insuranceName: _insuranceNameForHeader, // NEW
+    insuranceTotalFormatted: _insuranceTotalFmtForHeader, // NEW
   ),
 );
+
 },
 
                         child: const Text('Prosegui'),

@@ -105,6 +105,54 @@ class InitialConfig {
         if (extras.isNotEmpty) 'extras': extras.map((e) => e.toJson()).toList(),
       };
 
+  /// NEW: converte la configurazione in parametri di query per la webapp risultati.
+  ///
+  /// Esempio URL:
+  ///   https://www.mysite.com/result_page?pickup=...&dropoff=...&start=...&end=...&age=...
+  Map<String, String> toQueryParameters() {
+    final params = <String, String>{
+      'pickup': pickupLocation,
+      'dropoff': dropoffLocation,
+      'start': start.toUtc().toIso8601String(),
+      'end': end.toUtc().toIso8601String(),
+      'step': step.toString(),
+    };
+
+    if (age != null) {
+      params['age'] = age!.toString();
+    }
+    if (coupon != null && coupon!.isNotEmpty) {
+      params['coupon'] = coupon!;
+    }
+    if (channel != null && channel!.isNotEmpty) {
+      params['channel'] = channel!;
+    }
+    if (vehicleId != null && vehicleId!.isNotEmpty) {
+      params['vehicleId'] = vehicleId!;
+    }
+
+    // Nota: extras, originalMap e originalBase64 NON sono inclusi nella query string
+    // perché complessi; se servisse passarli si può usare toBase64Url() in un
+    // singolo parametro, es: cfg=<base64>.
+
+    return params;
+  }
+
+  /// NEW: serializza l'intera configurazione in una stringa base64 URL-safe,
+  /// simmetrica rispetto a fromBase64Url().
+  ///
+  /// Utile se vuoi passare tutta la config in un solo parametro di query:
+  ///   final cfgParam = cfg.toBase64Url();
+  ///   Uri.https('www.mysite.com', '/result_page', {'cfg': cfgParam});
+  String toBase64Url() {
+    final jsonStr = jsonEncode(toJson());
+    final bytes = utf8.encode(jsonStr);
+    final b64 = base64.encode(bytes);
+    final urlSafe =
+        b64.replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+    return urlSafe;
+  }
+
   /// copyWith comodo per aggiornare lo step, il vehicleId, gli extra, ecc.
   InitialConfig copyWith({
     int? step,

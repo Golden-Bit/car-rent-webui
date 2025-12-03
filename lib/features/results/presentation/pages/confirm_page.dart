@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:math';
+
 import 'package:car_rent_webui/app.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -14,7 +16,19 @@ class ConfirmArgs {
   final Map<String, dynamic>? dataJson;
   final Offer? selected;
   final List<InitialExtra>? selectedExtras;
-  const ConfirmArgs({this.cfg, this.dataJson, this.selected, this.selectedExtras});
+
+  // NEW: riepilogo assicurazione per StepHeader
+  final String? insuranceName;             // es. "GOLD", "PLATINUM", "PREMIUM"
+  final String? insuranceTotalFormatted;   // es. "€ 126,00"
+
+  const ConfirmArgs({
+    this.cfg,
+    this.dataJson,
+    this.selected,
+    this.selectedExtras,
+    this.insuranceName,
+    this.insuranceTotalFormatted,
+  });
 }
 
 class ConfirmPage extends StatefulWidget {
@@ -50,6 +64,10 @@ class _ConfirmPageState extends State<ConfirmPage> {
   String? _step3ExtrasTotal;
   bool _hydrated = false;
 
+  // NEW: assicurazione per StepHeader (nome + totale)
+  String? _step3InsuranceName;
+  String? _step3InsuranceTotal;
+
   // Stato UI
   PaymentMethod _payMethod = PaymentMethod.payNow;
 
@@ -80,6 +98,20 @@ class _ConfirmPageState extends State<ConfirmPage> {
   bool _accProfiling = false;
   bool _accDataShare = false;
 
+void _handleStepTap(int step) {
+  const currentStep = 4; // questa pagina è lo step 4
+  if (step < 1 || step >= currentStep) return;
+
+  final stepsBack = currentStep - step; // es. step=2 -> 2 pagine indietro
+
+  final nav = Navigator.of(context);
+  for (var i = 0; i < stepsBack; i++) {
+    if (!nav.canPop()) break; // sicurezza: non uscire dall'app
+    nav.pop();
+  }
+}
+
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -92,8 +124,16 @@ class _ConfirmPageState extends State<ConfirmPage> {
     _selected = confirm?.selected;
     _selectedExtras = confirm?.selectedExtras ?? const [];
 
+    // NEW: prendo dal navigation args il riepilogo assicurazione
+    _step3InsuranceName = confirm?.insuranceName;
+    _step3InsuranceTotal = confirm?.insuranceTotalFormatted;
+
     if (_dataJson != null || _selected != null) {
-      _hydrateHeaderFromDataJson(_dataJson ?? const {}, _selected, _selectedExtras);
+      _hydrateHeaderFromDataJson(
+        _dataJson ?? const {},
+        _selected,
+        _selectedExtras,
+      );
     } else {
       final cfg = confirm?.cfg ?? _readConfigFromUrl();
       if (cfg != null) _hydrateHeaderFromJson(cfg.toJson());
@@ -132,21 +172,24 @@ class _ConfirmPageState extends State<ConfirmPage> {
       body: Column(
         children: [
           // Header step 4
-          StepsHeader(
-            currentStep: 4,
-            accent: kBrandDark,
-            step1Pickup: _step1Pickup,
-            step1Dropoff: _step1Dropoff,
-            step1Start: _step1Start,
-            step1End: _step1End,
-            step2Title: _step2Title,
-            step2Subtitle: _step2Subtitle,
-            step2Thumb: _step2Thumb,
-            step2Price: _step2Price,
-            step3Extras: _step3Extras,
-            step3ExtrasTotal: _step3ExtrasTotal,
-            onTapStep: (n) => (n == 3 || n == 2 || n == 1) ? Navigator.of(context).maybePop() : null,
-          ),
+StepsHeader(
+  currentStep: 4,
+  accent: kBrandDark,
+  step1Pickup: _step1Pickup,
+  step1Dropoff: _step1Dropoff,
+  step1Start: _step1Start,
+  step1End: _step1End,
+  step2Title: _step2Title,
+  step2Subtitle: _step2Subtitle,
+  step2Thumb: _step2Thumb,
+  step2Price: _step2Price,
+  step3Extras: _step3Extras,
+  step3ExtrasTotal: _step3ExtrasTotal,
+  step3InsuranceName: _step3InsuranceName,
+  step3InsuranceTotal: _step3InsuranceTotal,
+  onTapStep: _handleStepTap,
+),
+
 
           // Contenuto scrollabile SU TUTTA LA LARGHEZZA
           Expanded(
@@ -221,7 +264,9 @@ class _ConfirmPageState extends State<ConfirmPage> {
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(kRadius),
                                       ),
-                                      textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                                      textStyle: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                     onPressed: _onSubmit,
                                     child: const Text('Prenota subito!'),
@@ -254,7 +299,10 @@ class _ConfirmPageState extends State<ConfirmPage> {
           method: PaymentMethod.payNow,
           icon: Icons.credit_card,
           title: 'PAGA ORA',
-          subtitle: const Text('Risparmia € 2,4', style: TextStyle(fontSize: 10, color: kTxtMuted)),
+          subtitle: const Text(
+            'Risparmia € 2,4',
+            style: TextStyle(fontSize: 10, color: kTxtMuted),
+          ),
           price: '€ 45,70',
         ),
         _paymentCard(
@@ -311,7 +359,10 @@ class _ConfirmPageState extends State<ConfirmPage> {
                       const SizedBox(width: 10),
                       Text(
                         title,
-                        style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: .2),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: .2,
+                        ),
                       ),
                     ],
                   ),
@@ -320,7 +371,13 @@ class _ConfirmPageState extends State<ConfirmPage> {
                     subtitle,
                   ],
                   const Spacer(), // spinge il prezzo in basso
-                  Text(price, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 20)),
+                  Text(
+                    price,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 20,
+                    ),
+                  ),
                 ],
               ),
 
@@ -334,7 +391,8 @@ class _ConfirmPageState extends State<ConfirmPage> {
   }
 
   Widget _cardForm() {
-    final visible = _payMethod == PaymentMethod.payNow || _payMethod == PaymentMethod.scalapay;
+    final visible =
+        _payMethod == PaymentMethod.payNow || _payMethod == PaymentMethod.scalapay;
     if (!visible) return const SizedBox.shrink();
 
     return Container(
@@ -369,7 +427,9 @@ class _ConfirmPageState extends State<ConfirmPage> {
                     _textField(
                       controller: _ccExp,
                       hint: 'MM / AA',
-                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9/ ]'))],
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9/ ]'))
+                      ],
                     ),
                   ],
                 ),
@@ -384,7 +444,9 @@ class _ConfirmPageState extends State<ConfirmPage> {
                     _textField(
                       controller: _ccCvc,
                       hint: 'CVC',
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                      ],
                     ),
                   ],
                 ),
@@ -409,11 +471,14 @@ class _ConfirmPageState extends State<ConfirmPage> {
             borderRadius: BorderRadius.circular(999),
             border: Border.all(color: sel ? kBrand : kStroke),
           ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            _radioTiny(sel),
-            const SizedBox(width: 8),
-            Text(text),
-          ]),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _radioTiny(sel),
+              const SizedBox(width: 8),
+              Text(text),
+            ],
+          ),
         ),
       );
     }
@@ -467,11 +532,23 @@ class _ConfirmPageState extends State<ConfirmPage> {
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: kStroke),
             ),
-            child: const Text('PAYBACK', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+            child: const Text(
+              'PAYBACK',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+            ),
           ),
           const SizedBox(width: 12),
-          const Expanded(child: Text('Hai una Carta Payback?', style: TextStyle(fontWeight: FontWeight.w600))),
-          Switch(activeColor: kBrandDark, value: _hasPayback, onChanged: (v) => setState(() => _hasPayback = v)),
+          const Expanded(
+            child: Text(
+              'Hai una Carta Payback?',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          Switch(
+            activeColor: kBrandDark,
+            value: _hasPayback,
+            onChanged: (v) => setState(() => _hasPayback = v),
+          ),
         ],
       ),
     );
@@ -529,9 +606,19 @@ class _ConfirmPageState extends State<ConfirmPage> {
             text: TextSpan(
               style: const TextStyle(color: Colors.black87),
               children: [
-                const TextSpan(text: 'Cliccando su prenota subito dichiari di aver preso visione dell’'),
-                TextSpan(text: 'Informativa privacy', style: const TextStyle(color: kBrandDark, fontWeight: FontWeight.w600)),
-                const TextSpan(text: ' per la finalità di prenotazione delle nostre auto'),
+                const TextSpan(
+                    text:
+                        'Cliccando su prenota subito dichiari di aver preso visione dell’'),
+                TextSpan(
+                  text: 'Informativa privacy',
+                  style: const TextStyle(
+                    color: kBrandDark,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const TextSpan(
+                    text:
+                        ' per la finalità di prenotazione delle nostre auto'),
               ],
             ),
           ),
@@ -543,10 +630,23 @@ class _ConfirmPageState extends State<ConfirmPage> {
             text: TextSpan(
               style: const TextStyle(color: Colors.black87),
               children: [
-                const TextSpan(text: 'Dichiaro di aver letto compreso e accettato i '),
-                TextSpan(text: 'termini e condizioni generali di servizio', style: const TextStyle(color: kBrandDark, fontWeight: FontWeight.w600)),
+                const TextSpan(
+                    text: 'Dichiaro di aver letto compreso e accettato i '),
+                TextSpan(
+                  text: 'termini e condizioni generali di servizio',
+                  style: const TextStyle(
+                    color: kBrandDark,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const TextSpan(text: ' e il '),
-                TextSpan(text: 'tariffario', style: const TextStyle(color: kBrandDark, fontWeight: FontWeight.w600)),
+                TextSpan(
+                  text: 'tariffario',
+                  style: const TextStyle(
+                    color: kBrandDark,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
           ),
@@ -554,12 +654,18 @@ class _ConfirmPageState extends State<ConfirmPage> {
         _consentTile(
           value: _accProfiling,
           onChanged: (v) => setState(() => _accProfiling = v ?? false),
-          text: const Text('Acconsento al trattamento dei miei dati per attività di Profilazione, al fine di migliorare l’offerta di prodotti e servizi'),
+          text: const Text(
+            'Acconsento al trattamento dei miei dati per attività di Profilazione, '
+            'al fine di migliorare l’offerta di prodotti e servizi',
+          ),
         ),
         _consentTile(
           value: _accDataShare,
           onChanged: (v) => setState(() => _accDataShare = v ?? false),
-          text: const Text('Acconsento alla comunicazione dei miei dati a Tomasi Auto S.r.l., per finalità statistiche e/o commerciali'),
+          text: const Text(
+            'Acconsento alla comunicazione dei miei dati a Tomasi Auto S.r.l., '
+            'per finalità statistiche e/o commerciali',
+          ),
         ),
       ],
     );
@@ -577,25 +683,33 @@ class _ConfirmPageState extends State<ConfirmPage> {
         while (i < children.length) {
           if (isWide) {
             final left = children[i];
-            final right = (i + 1 < children.length && !left.span2) ? children[i + 1] : null;
+            final right =
+                (i + 1 < children.length && !left.span2) ? children[i + 1] : null;
 
-            rows.add(Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(width: left.effectiveWidth(colW), child: left.child),
-                if (right != null) ...[
-                  const SizedBox(width: kGutter),
-                  SizedBox(width: right.effectiveWidth(colW), child: right.child),
+            rows.add(
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: left.effectiveWidth(colW), child: left.child),
+                  if (right != null) ...[
+                    const SizedBox(width: kGutter),
+                    SizedBox(
+                      width: right.effectiveWidth(colW),
+                      child: right.child,
+                    ),
+                  ],
                 ],
-              ],
-            ));
+              ),
+            );
             i += (right == null) ? 1 : 2;
           } else {
             rows.add(SizedBox(width: colW, child: children[i].child));
             rows.add(const SizedBox(height: 12));
             i += 1;
           }
-          if (isWide && i < children.length) rows.add(const SizedBox(height: 12));
+          if (isWide && i < children.length) {
+            rows.add(const SizedBox(height: 12));
+          }
         }
         return Column(children: rows);
       },
@@ -617,8 +731,13 @@ class _ConfirmPageState extends State<ConfirmPage> {
     );
   }
 
-  _GridChild _selectLabeled(String label, ValueNotifier<String?> controller,
-      {required List<String> items, int span = 1, double? maxW}) {
+  _GridChild _selectLabeled(
+    String label,
+    ValueNotifier<String?> controller, {
+    required List<String> items,
+    int span = 1,
+    double? maxW,
+  }) {
     return _GridChild(
       span2: span == 2,
       maxW: maxW,
@@ -640,7 +759,8 @@ class _ConfirmPageState extends State<ConfirmPage> {
     );
   }
 
-  _GridChild _dateLabeled(String label, {required TextEditingController controller}) {
+  _GridChild _dateLabeled(String label,
+      {required TextEditingController controller}) {
     return _GridChild(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -662,11 +782,14 @@ class _ConfirmPageState extends State<ConfirmPage> {
                   final base = Theme.of(ctx);
                   return Theme(
                     data: base.copyWith(
-                      colorScheme: base.colorScheme.copyWith(primary: kBrandDark),
+                      colorScheme:
+                          base.colorScheme.copyWith(primary: kBrandDark),
                       datePickerTheme: base.datePickerTheme.copyWith(
                         headerBackgroundColor: Colors.white,
                         headerForegroundColor: Colors.black,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
                     child: child!,
@@ -688,7 +811,11 @@ class _ConfirmPageState extends State<ConfirmPage> {
 
   Widget _label(String s) => Text(
         s,
-        style: const TextStyle(fontSize: 12, color: kTxtMuted, fontWeight: FontWeight.w600),
+        style: const TextStyle(
+          fontSize: 12,
+          color: kTxtMuted,
+          fontWeight: FontWeight.w600,
+        ),
       );
 
   Widget _textField({
@@ -707,7 +834,8 @@ class _ConfirmPageState extends State<ConfirmPage> {
         hintText: hint,
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(kRadius),
           borderSide: const BorderSide(color: kStroke),
@@ -731,12 +859,14 @@ class _ConfirmPageState extends State<ConfirmPage> {
   }) {
     return DropdownButtonFormField<String>(
       value: value ?? items.first,
-      items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+      items:
+          items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
       onChanged: onChanged,
       decoration: InputDecoration(
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(kRadius),
           borderSide: const BorderSide(color: kStroke),
@@ -760,42 +890,76 @@ class _ConfirmPageState extends State<ConfirmPage> {
       height: 28,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: selected ? kBrandDark : kStroke, width: 2),
+        border: Border.all(
+          color: selected ? kBrandDark : kStroke,
+          width: 2,
+        ),
       ),
       alignment: Alignment.center,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         width: selected ? 12 : 0,
         height: selected ? 12 : 0,
-        decoration: BoxDecoration(color: kBrandDark, borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(
+          color: kBrandDark,
+          borderRadius: BorderRadius.circular(6),
+        ),
       ),
     );
   }
 
   Widget _radioTiny(bool selected) {
     return Container(
-      width: 14, height: 14,
-      decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: selected ? kBrandDark : kStroke, width: 1.4)),
+      width: 14,
+      height: 14,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: selected ? kBrandDark : kStroke,
+          width: 1.4,
+        ),
+      ),
       alignment: Alignment.center,
-      child: Container(width: 7, height: 7, decoration: BoxDecoration(color: selected ? kBrandDark : Colors.transparent, shape: BoxShape.circle)),
+      child: Container(
+        width: 7,
+        height: 7,
+        decoration: BoxDecoration(
+          color: selected ? kBrandDark : Colors.transparent,
+          shape: BoxShape.circle,
+        ),
+      ),
     );
   }
 
   Widget _circleIcon(IconData icon, {Color? bg}) {
     return Container(
-      width: 36, height: 36,
-      decoration: BoxDecoration(color: bg ?? kBrand.withOpacity(.10), shape: BoxShape.circle, border: Border.all(color: kStroke)),
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: bg ?? kBrand.withOpacity(.10),
+        shape: BoxShape.circle,
+        border: Border.all(color: kStroke),
+      ),
       child: Icon(icon, color: kBrandDark),
     );
   }
 
-  Widget _consentTile({required bool value, required Widget text, ValueChanged<bool?>? onChanged}) {
+  Widget _consentTile({
+    required bool value,
+    required Widget text,
+    ValueChanged<bool?>? onChanged,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Checkbox(value: value, onChanged: onChanged, activeColor: kBrandDark, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
+          Checkbox(
+            value: value,
+            onChanged: onChanged,
+            activeColor: kBrandDark,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
           const SizedBox(width: 6),
           Expanded(child: text),
         ],
@@ -803,16 +967,25 @@ class _ConfirmPageState extends State<ConfirmPage> {
     );
   }
 
-  Widget _sectionTitle(String t) => Text(t, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18));
+  Widget _sectionTitle(String t) => Text(
+        t,
+        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+      );
 
   // ---------------- LOGICA ----------------
 
   void _onSubmit() {
     if (!_accPrivacy || !_accTos) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Accetta privacy e termini per continuare.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Accetta privacy e termini per continuare.'),
+        ),
+      );
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Prenotazione inviata (demo).')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Prenotazione inviata (demo).')),
+    );
   }
 
   InitialConfig? _readConfigFromUrl() {
@@ -826,14 +999,35 @@ class _ConfirmPageState extends State<ConfirmPage> {
     }
   }
 
-  void _hydrateHeaderFromDataJson(Map<String, dynamic> data, Offer? selected, List<InitialExtra> chosen) {
-    _step1Pickup = _displayLocationName(data, codeKey: 'PickUpLocation', nameCandidates: const [
-      'PickUpLocationName', 'pickupName', 'PickupName', 'PickupCity', 'pickupCity'
-    ]) ?? data['PickUpLocation']?.toString();
+  void _hydrateHeaderFromDataJson(
+    Map<String, dynamic> data,
+    Offer? selected,
+    List<InitialExtra> chosen,
+  ) {
+    _step1Pickup = _displayLocationName(
+          data,
+          codeKey: 'PickUpLocation',
+          nameCandidates: const [
+            'PickUpLocationName',
+            'pickupName',
+            'PickupName',
+            'PickupCity',
+            'pickupCity',
+          ],
+        ) ??
+        data['PickUpLocation']?.toString();
 
-    _step1Dropoff = _displayLocationName(data, codeKey: 'ReturnLocation', nameCandidates: const [
-      'ReturnLocationName', 'returnName', 'ReturnCity', 'returnCity'
-    ]) ?? data['ReturnLocation']?.toString();
+    _step1Dropoff = _displayLocationName(
+          data,
+          codeKey: 'ReturnLocation',
+          nameCandidates: const [
+            'ReturnLocationName',
+            'returnName',
+            'ReturnCity',
+            'returnCity',
+          ],
+        ) ??
+        data['ReturnLocation']?.toString();
 
     _step1Start = _fmtDate(data['PickUpDateTime']?.toString());
     _step1End = _fmtDate(data['ReturnDateTime']?.toString());
@@ -851,9 +1045,12 @@ class _ConfirmPageState extends State<ConfirmPage> {
       for (final ch in chosen) {
         for (final raw in list) {
           final m = (raw as Map).cast<String, dynamic>();
-          final equip = (m['Equipment'] as Map?)?.cast<String, dynamic>() ?? const {};
-          final charge = (m['Charge'] as Map?)?.cast<String, dynamic>() ?? const {};
-          final code = (equip['EquipType'] as String?) ?? (equip['Description'] as String?);
+          final equip =
+              (m['Equipment'] as Map?)?.cast<String, dynamic>() ?? const {};
+          final charge =
+              (m['Charge'] as Map?)?.cast<String, dynamic>() ?? const {};
+          final code =
+              (equip['EquipType'] as String?) ?? (equip['Description'] as String?);
           final title = (equip['Description'] ?? 'Optional').toString();
           final isPerDay = (equip['isMultipliable'] as bool?) ?? true;
           if (code != null && code.toLowerCase() == ch.code.toLowerCase()) {
@@ -866,11 +1063,17 @@ class _ConfirmPageState extends State<ConfirmPage> {
       }
     }
     _step3Extras = labels;
-    _step3ExtrasTotal = labels.isEmpty ? null : _formatMoney(totalExtra, 'EUR');
+    _step3ExtrasTotal =
+        labels.isEmpty ? null : _formatMoney(totalExtra, 'EUR');
   }
 
   void _hydrateHeaderFromJson(Map<String, dynamic> m) {
-    String? _s(dynamic v) => v == null ? null : v.toString().trim().isEmpty ? null : v.toString().trim();
+    String? _s(dynamic v) => v == null
+        ? null
+        : v.toString().trim().isEmpty
+            ? null
+            : v.toString().trim();
+
     _step1Pickup = _s(m['pickupLocation']);
     _step1Dropoff = _s(m['dropoffLocation']);
     _step1Start = _fmtDate(_s(m['start']));
@@ -888,7 +1091,9 @@ class _ConfirmPageState extends State<ConfirmPage> {
         if (e is Map) {
           final em = e.cast<String, dynamic>();
           final code = _s(em['code']);
-          if (code != null && code.trim().isNotEmpty) extras.add(code.trim());
+          if (code != null && code.trim().isNotEmpty) {
+            extras.add(code.trim());
+          }
         }
       }
     }
@@ -901,7 +1106,20 @@ class _ConfirmPageState extends State<ConfirmPage> {
     try {
       final dt = DateTime.parse(iso).toLocal();
       String two(int n) => n.toString().padLeft(2, '0');
-      const it = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+      const it = [
+        'gen',
+        'feb',
+        'mar',
+        'apr',
+        'mag',
+        'giu',
+        'lug',
+        'ago',
+        'set',
+        'ott',
+        'nov',
+        'dic'
+      ];
       final mon = it[(dt.month - 1).clamp(0, 11)];
       return '${dt.day} $mon, ${dt.year} ${two(dt.hour)}:${two(dt.minute)}';
     } catch (_) {
@@ -909,7 +1127,11 @@ class _ConfirmPageState extends State<ConfirmPage> {
     }
   }
 
-  static String? _displayLocationName(Map<String, dynamic> m, {required String codeKey, required List<String> nameCandidates}) {
+  static String? _displayLocationName(
+    Map<String, dynamic> m, {
+    required String codeKey,
+    required List<String> nameCandidates,
+  }) {
     for (final k in nameCandidates) {
       final v = m[k];
       if (v is String && v.trim().isNotEmpty) return v.trim();
@@ -931,19 +1153,26 @@ class _ConfirmPageState extends State<ConfirmPage> {
   static String? _formatHeaderPrice(Map<String, dynamic> dataJson, Offer? selected) {
     String? _fmt(num? amount, String? currencyCode) {
       if (amount == null) return null;
-      final symbol = (currencyCode == null || currencyCode == 'EUR') ? '€' : currencyCode;
+      final symbol =
+          (currencyCode == null || currencyCode == 'EUR') ? '€' : currencyCode;
       return '$symbol ${amount.toStringAsFixed(2)}';
     }
 
-    final tc = (dataJson['TotalCharge'] is Map) ? Map<String, dynamic>.from(dataJson['TotalCharge'] as Map) : null;
-    final num? amountFromData = (tc?['RateTotalAmount'] as num?) ?? (tc?['EstimatedTotalAmount'] as num?);
+    final tc = (dataJson['TotalCharge'] is Map)
+        ? Map<String, dynamic>.from(dataJson['TotalCharge'] as Map)
+        : null;
+    final num? amountFromData =
+        (tc?['RateTotalAmount'] as num?) ?? (tc?['EstimatedTotalAmount'] as num?);
     final String? currFromData = tc?['CurrencyCode'] as String?;
     final formattedFromData = _fmt(amountFromData, currFromData);
     if (formattedFromData != null) return formattedFromData;
 
     final raw = selected?.raw;
-    final tc2 = (raw is Map && raw!['TotalCharge'] is Map) ? Map<String, dynamic>.from(raw['TotalCharge'] as Map) : null;
-    final num? amountFromRaw = (tc2?['RateTotalAmount'] as num?) ?? (tc2?['EstimatedTotalAmount'] as num?);
+    final tc2 = (raw is Map && raw?['TotalCharge'] is Map)
+        ? Map<String, dynamic>.from(raw?['TotalCharge'] as Map)
+        : null;
+    final num? amountFromRaw =
+        (tc2?['RateTotalAmount'] as num?) ?? (tc2?['EstimatedTotalAmount'] as num?);
     final String? currFromRaw = tc2?['CurrencyCode'] as String?;
     return _fmt(amountFromRaw, currFromRaw);
   }
@@ -963,16 +1192,28 @@ class _GridChild {
   final Widget child;
   final bool span2;
   final double? maxW;
-  _GridChild({required this.child, this.span2 = false, this.maxW});
+
+  _GridChild({
+    required this.child,
+    this.span2 = false,
+    this.maxW,
+  });
+
   double effectiveWidth(double colW) {
     final w = span2 ? colW * 2 + _ConfirmPageState.kGutter : colW;
-    return maxW == null ? w : w.clamp(0, maxW!);
+    return maxW == null ? w : max(min(w, maxW!), 0);
   }
 }
 
 // Rimuove glow su web
 class _NoGlow extends ScrollBehavior {
   const _NoGlow();
+
   @override
-  Widget buildViewportChrome(BuildContext context, Widget child, AxisDirection axisDirection) => child;
+  Widget buildViewportChrome(
+    BuildContext context,
+    Widget child,
+    AxisDirection axisDirection,
+  ) =>
+      child;
 }
