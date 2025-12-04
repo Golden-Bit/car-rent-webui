@@ -951,7 +951,7 @@ class _LocationInfoCard extends StatelessWidget {
         style: TextStyle(color: Colors.black54),
       );
     }
-    return Card(
+    return Spacer();/*Card(
       elevation: 2,
       margin: const EdgeInsets.all(24),
       color: const Color(0xFFFFF1EA),
@@ -1005,6 +1005,6 @@ class _LocationInfoCard extends StatelessWidget {
           ),
         ),
       ),
-    );
+    );*/
   }
 }
