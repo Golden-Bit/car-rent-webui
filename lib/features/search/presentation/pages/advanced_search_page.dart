@@ -951,7 +951,7 @@ class _LocationInfoCard extends StatelessWidget {
         style: TextStyle(color: Colors.black54),
       );
     }
-    return Spacer();/*Card(
+    return Card(
       elevation: 2,
       margin: const EdgeInsets.all(24),
       color: const Color(0xFFFFF1EA),
@@ -990,10 +990,11 @@ class _LocationInfoCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               if (location!.email != null)
-                Text(location!.email!),
+                //Text(location!.email!),
+                Text('info@rentalpremium.it'),
               if (location!.telephoneNumber != null)
-                Text(
-                    'phone: ${location!.telephoneNumber!}'),
+                //Text(
+                //    'phone: ${location!.telephoneNumber!}'),
               if (location!.locationAddress != null)
                 Padding(
                   padding:
@@ -1005,6 +1006,6 @@ class _LocationInfoCard extends StatelessWidget {
           ),
         ),
       ),
-    );*/
+    );
   }
 }
