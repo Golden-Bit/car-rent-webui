@@ -181,19 +181,34 @@ class _AdvancedSearchPageState extends State<AdvancedSearchPage> {
   ///       // window.location.href = evt.data; // se vuoi redirigere l'host
   ///     });
   ///   </script>
-  void _postMessageToParent(String url) {
-    if (!kIsWeb) return;
-
-    try {
-      // window.parent.postMessage(url, "*")
-      final parent = js.context['parent'];
-      if (parent != null) {
-        parent.callMethod('postMessage', [url, '*']);
-      }
-    } catch (_) {
-      // in caso di errore (es. non in iframe), non facciamo nulla
-    }
+void _postMessageToParent(String url) {
+  if (!kIsWeb) {
+    debugPrint('[postMessage] kIsWeb = false, esco. url = $url');
+    return;
   }
+
+  try {
+    final current = html.window;
+    final parent = html.window.parent; // WindowBase? (può essere null)
+
+    debugPrint('[postMessage] url = $url');
+    debugPrint('[postMessage] window.origin = ${current.location.origin}');
+    debugPrint('[postMessage] parent == window ? ${identical(parent, current)}');
+
+    if (parent == null) {
+      debugPrint('[postMessage] window.parent è NULL (non siamo in iframe?)');
+      return;
+    }
+
+    // 🔥 Questo è l’unico punto che ci interessa davvero:
+    parent.postMessage(url, '*');
+    debugPrint('[postMessage] parent.postMessage(url, "*") inviato senza eccezioni.');
+  } catch (e, st) {
+    debugPrint('[postMessage] ERRORE durante postMessage: $e');
+    debugPrint('[postMessage] StackTrace:\n$st');
+  }
+}
+
 
 
   @override
