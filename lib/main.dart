@@ -23,6 +23,11 @@ void main() {
   // allora il bootstrap deve partire direttamente dal flusso risultati.
   final bool startOnResults = _readStartOnResultsFlagFromUrl();
 
+  // NUOVO: se l'URL corrente punta alla pagina "gestione prenotazioni"
+  // (es. /booking_management o #/booking_management)
+  // vogliamo partire direttamente da quella pagina.
+  final bool startOnBookingManagement = _readStartOnBookingManagementFlagFromUrl();
+
   // NUOVO: flag per modalità embedded (is_embedded=1 / true / yes / on)
   final bool isEmbedded = _readIsEmbeddedFlagFromUrl();
 
@@ -31,8 +36,11 @@ void main() {
       initialConfig: cfg,
       showAppBar: showAppBar,
       resultsBaseUrl: resultsBaseUrl,
-      startOnResults: startOnResults,
-      isEmbedded: isEmbedded, // ⬅️ nuovo parametro
+      // Se partiamo su Gestione Prenotazioni, disattiviamo il bootstrap "results"
+      startOnResults: startOnResults && !startOnBookingManagement,
+      isEmbedded: isEmbedded,
+      // NUOVO: passiamo l’intento di partire direttamente da Gestione Prenotazioni
+      startOnBookingManagement: startOnBookingManagement,
     ),
   );
 }
@@ -144,6 +152,36 @@ bool _readStartOnResultsFlagFromUrl() {
     }
 
     if (isResultsLocation(path) || isResultsLocation(fragment)) {
+      return true;
+    }
+
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// NUOVO: determina se l'entry point attuale è la pagina **Gestione prenotazioni**.
+///
+/// Considera sia path che fragment:
+///  - https://host/booking_management
+///  - https://host/#/booking_management
+bool _readStartOnBookingManagementFlagFromUrl() {
+  if (!kIsWeb) return false;
+
+  try {
+    final uri = Uri.base;
+    final path = uri.path.toLowerCase();          // es. '/', '/booking_management'
+    final fragment = uri.fragment.toLowerCase();  // es. '/booking_management?foo=bar'
+
+    bool isBookingManagementLocation(String s) {
+      if (s.isEmpty) return false;
+      // Controllo generico: contiene "booking_management" o termina con "/booking_management"
+      return s.contains('booking_management') || s.endsWith('/booking_management');
+    }
+
+    if (isBookingManagementLocation(path) ||
+        isBookingManagementLocation(fragment)) {
       return true;
     }
 

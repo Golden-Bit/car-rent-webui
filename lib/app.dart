@@ -14,6 +14,9 @@ import 'features/results/presentation/pages/confirm_page.dart';
 // Long term
 import 'features/long_term/presentation/pages/long_term_offer_page.dart';
 
+// NUOVO: Gestione prenotazioni
+import 'features/results/presentation/pages/booking_management_page.dart';
+
 // Deep link / Config iniziale
 import 'core/deeplink/initial_config.dart';
 
@@ -29,12 +32,14 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 /// Gestisce **entrambi** i flussi:
 /// - flusso "search": home + advanced, con redirect esterno (o interno) verso /result_page
 /// - flusso "results": entry direct su /result_page?cfg=... con loader + lista risultati
+/// - NUOVO: flusso "booking management": entry diretta su /booking_management
 class MyrentBookingApp extends StatefulWidget {
   final InitialConfig? initialConfig;
   final bool showAppBar;       // controlla globalmente la visibilità della top bar
   final String resultsBaseUrl; // base URL per il redirect verso la pagina risultati
   final bool startOnResults;   // se true, bootstrap direttamente su ResultsPage
-  final bool isEmbedded;       // NUOVO: modalità embedded/iframe/webview
+  final bool isEmbedded;       // modalità embedded/iframe/webview
+  final bool startOnBookingManagement; // NUOVO: se true, avvio diretto su Gestione Prenotazioni
 
   const MyrentBookingApp({
     super.key,
@@ -43,6 +48,7 @@ class MyrentBookingApp extends StatefulWidget {
     this.resultsBaseUrl = kDefaultResultsBaseUrl,
     this.startOnResults = false,
     this.isEmbedded = false,   // default: non embedded
+    this.startOnBookingManagement = false, // default: avvia da home
   });
 
   @override
@@ -59,7 +65,8 @@ class _MyrentBookingAppState extends State<MyrentBookingApp> {
     if (_bootstrapped) return;
 
     // Se presente una InitialConfig, orchestri l’avvio dopo il primo frame
-    if (widget.initialConfig != null) {
+    // MA NON se stiamo partendo in modalità "Gestione prenotazioni".
+    if (widget.initialConfig != null && !widget.startOnBookingManagement) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         await _driveFromConfig(
           widget.initialConfig!,
@@ -76,7 +83,7 @@ class _MyrentBookingAppState extends State<MyrentBookingApp> {
     return AppUiFlags(
       showAppBar: widget.showAppBar,
       resultsBaseUrl: widget.resultsBaseUrl,
-      isEmbedded: widget.isEmbedded, // ⬅️ passa il flag nel contesto
+      isEmbedded: widget.isEmbedded, // passa il flag nel contesto
       child: MaterialApp(
         navigatorKey: rootNavigatorKey,
         debugShowCheckedModeBanner: false,
@@ -109,6 +116,13 @@ class _MyrentBookingAppState extends State<MyrentBookingApp> {
               //  - ResultsArgsFromConfig (solo cfg → chiama il backend)
               return MaterialPageRoute(
                 builder: (_) => const ResultsPage(),
+                settings: settings,
+              );
+
+            // NUOVO: rotta per la pagina di Gestione prenotazioni
+            case BookingManagementPage.routeName:
+              return MaterialPageRoute(
+                builder: (_) => const BookingManagementPage(),
                 settings: settings,
               );
 
@@ -149,8 +163,13 @@ class _MyrentBookingAppState extends State<MyrentBookingApp> {
           return null;
         },
 
-        // Route di avvio logica: il bootstrap spingerà poi la pagina giusta.
-        initialRoute: '/',
+        // Route di avvio logica:
+        // - se startOnBookingManagement == true → apri direttamente /booking_management
+        // - altrimenti → '/' (Home). Poi il bootstrap spingerà la pagina giusta (Results/Search)
+        //   in base a InitialConfig e startOnResults.
+        initialRoute: widget.startOnBookingManagement
+            ? BookingManagementPage.routeName
+            : '/',
       ),
     );
   }
@@ -195,7 +214,7 @@ Future<void> _driveFromConfig(
 class AppUiFlags extends InheritedWidget {
   final bool showAppBar;
   final String resultsBaseUrl;
-  final bool isEmbedded; // ⬅️ nuovo flag nel contesto
+  final bool isEmbedded; // flag embedded per le pagine
 
   const AppUiFlags({
     super.key,
@@ -219,7 +238,7 @@ class AppUiFlags extends InheritedWidget {
           ?.resultsBaseUrl ??
       kDefaultResultsBaseUrl;
 
-  /// NUOVO: restituisce il flag embedded per le pagine
+  /// Restituisce il flag embedded per le pagine
   static bool isEmbeddedOf(BuildContext context) =>
       context
           .dependOnInheritedWidgetOfExactType<AppUiFlags>()
