@@ -276,6 +276,7 @@ void _postMessageToParent(String url) {
                   child: SizedBox(
                     width: leftAreaWidth, // il Padding crea lo spazio a sx
                     child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                       padding: EdgeInsets.only(
                         top: size.height * 0.18,
                         bottom: 40,
@@ -332,6 +333,7 @@ void _postMessageToParent(String url) {
       appBar: AppUiFlags.showAppBarOf(context) ? const TopNavBar() : null,
       backgroundColor: Colors.transparent,
       body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
         child: Column(
           children: [
             // Sezione arancione (form stacked 1 col)

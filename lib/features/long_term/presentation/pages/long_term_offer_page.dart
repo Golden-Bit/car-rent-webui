@@ -76,6 +76,7 @@ class _LongTermOfferPageState extends State<LongTermOfferPage> {
           return Align(
             alignment: Alignment.topCenter,
             child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
               child: ConstrainedBox(
                 constraints: BoxConstraints.tightFor(width: maxBodyW),

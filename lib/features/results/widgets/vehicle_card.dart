@@ -300,6 +300,7 @@ class _VehicleCardState extends State<VehicleCard> {
               children: [
                 Expanded(
                   child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -312,6 +313,7 @@ class _VehicleCardState extends State<VehicleCard> {
                 const SizedBox(width: 24),
                 Expanded(
                   child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [

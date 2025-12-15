@@ -1,3 +1,4 @@
+import 'package:car_rent_webui/core/widgets/iframe_scroll_bridge.dart';
 import 'package:flutter/material.dart';
 
 import 'theme/app_theme.dart';
@@ -84,7 +85,9 @@ class _MyrentBookingAppState extends State<MyrentBookingApp> {
       showAppBar: widget.showAppBar,
       resultsBaseUrl: widget.resultsBaseUrl,
       isEmbedded: widget.isEmbedded, // passa il flag nel contesto
-      child: MaterialApp(
+      child: IframeScrollBridge(
+  enabled: widget.isEmbedded, // usa già il tuo flag is_embedded=1
+  child:  MaterialApp(
         navigatorKey: rootNavigatorKey,
         debugShowCheckedModeBanner: false,
         title: 'Myrent – Prenotazione',
@@ -170,7 +173,7 @@ class _MyrentBookingAppState extends State<MyrentBookingApp> {
         initialRoute: widget.startOnBookingManagement
             ? BookingManagementPage.routeName
             : '/',
-      ),
+      )),
     );
   }
 }
