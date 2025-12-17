@@ -110,7 +110,7 @@ class _MyrentBookingAppState extends State<MyrentBookingApp> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isEmbedded = Uri.base.queryParameters['is_embedded'] == '1';
+    //final bool isEmbedded = Uri.base.queryParameters['is_embedded'] == '1';
     return AppUiFlags(
       showAppBar: widget.showAppBar,
       resultsBaseUrl: widget.resultsBaseUrl,
@@ -118,7 +118,7 @@ class _MyrentBookingAppState extends State<MyrentBookingApp> {
       child: IframeScrollBridge(
   enabled: widget.isEmbedded, // usa già il tuo flag is_embedded=1
   child:  MaterialApp(
-        scrollBehavior: isEmbedded ? const EmbeddedScrollBehavior() : const MaterialScrollBehavior(),
+        scrollBehavior: widget.isEmbedded ? const EmbeddedScrollBehavior() : const MaterialScrollBehavior(),
         navigatorKey: rootNavigatorKey,
         debugShowCheckedModeBanner: false,
         title: 'Myrent – Prenotazione',

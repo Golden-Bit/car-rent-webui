@@ -10,11 +10,20 @@ class IframeScrollBridge extends StatefulWidget {
   final bool enabled;
   final bool debug;
 
+  /// Moltiplicatore per touch-drag al bordo (mobile).
+  /// Se WP scorre ancora poco, alza a 2.0–3.0.
+  final double touchGain;
+
+  /// Moltiplicatore per wheel/trackpad al bordo (desktop).
+  final double wheelGain;
+
   const IframeScrollBridge({
     super.key,
     required this.child,
     required this.enabled,
     this.debug = true,
+    this.touchGain = 2.4,
+    this.wheelGain = 1.0,
   });
 
   @override
@@ -23,9 +32,12 @@ class IframeScrollBridge extends StatefulWidget {
 
 class _IframeScrollBridgeState extends State<IframeScrollBridge> {
   String? _parentOrigin;
-
-  // Ultime metriche note dello scroll (servono per capire se siamo al bordo)
   ScrollMetrics? _lastMetrics;
+
+  // batching (1 invio per frame)
+  double _pending = 0;
+  String _pendingVia = 'unknown';
+  bool _scheduled = false;
 
   void _log(Object msg) {
     if (!widget.debug) return;
@@ -63,17 +75,20 @@ class _IframeScrollBridgeState extends State<IframeScrollBridge> {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _postToParent('child-ready', {
-        'childOrigin': html.window.location.origin,
-        'href': html.window.location.href,
-        'embedded': html.window.parent != html.window,
-        'ts': DateTime.now().toIso8601String(),
-      }, forceTargetOrigin: '*'); // debug: ok
+      _postToParent(
+        'child-ready',
+        {
+          'childOrigin': html.window.location.origin,
+          'href': html.window.location.href,
+          'embedded': html.window.parent != html.window,
+          'ts': DateTime.now().toIso8601String(),
+        },
+        forceTargetOrigin: '*', // debug ok
+      );
     });
   }
 
-  void _postToParent(String type, Map<String, dynamic> payload,
-      {String? forceTargetOrigin}) {
+  void _postToParent(String type, Map<String, dynamic> payload, {String? forceTargetOrigin}) {
     if (!kIsWeb || !widget.enabled) return;
 
     final parent = html.window.parent;
@@ -86,13 +101,34 @@ class _IframeScrollBridgeState extends State<IframeScrollBridge> {
     parent.postMessage(msg, targetOrigin);
   }
 
-  void _sendScrollToParent(double dy, {required String via}) {
+  void _queueScroll(double dy, {required String via}) {
     if (dy == 0) return;
-    _postToParent('scroll-parent', {
-      'deltaY': dy,
-      'via': via,
-      'ts': DateTime.now().toIso8601String(),
-    }, forceTargetOrigin: '*'); // debug
+
+    _pending += dy;
+    _pendingVia = via;
+
+    if (_scheduled) return;
+    _scheduled = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduled = false;
+
+      final send = _pending;
+      final sendVia = _pendingVia;
+      _pending = 0;
+
+      if (send == 0) return;
+
+      _postToParent(
+        'scroll-parent',
+        {
+          'deltaY': send,
+          'via': sendVia,
+          'ts': DateTime.now().toIso8601String(),
+        },
+        forceTargetOrigin: '*', // debug; in produzione: rimuovi e usa _parentOrigin
+      );
+    });
   }
 
   bool _atTop(ScrollMetrics m) => m.pixels <= m.minScrollExtent + 0.5;
@@ -103,47 +139,63 @@ class _IframeScrollBridgeState extends State<IframeScrollBridge> {
     if (!widget.enabled) return widget.child;
 
     return Listener(
-      // ✅ Questo cattura wheel/trackpad anche quando lo scroll è “bloccato” al bordo
+      // Desktop: wheel/trackpad
       onPointerSignal: (ps) {
         if (ps is PointerScrollEvent) {
           final m = _lastMetrics;
           if (m == null) return;
 
-          final dy = ps.scrollDelta.dy;
+          final dy = ps.scrollDelta.dy * widget.wheelGain;
           final atTop = _atTop(m);
           final atBottom = _atBottom(m);
 
-          // Se sei al bordo e continui nella stessa direzione, passa al parent
           if ((atBottom && dy > 0) || (atTop && dy < 0)) {
             _log('🛞 PointerScrollEvent atEdge: atTop=$atTop atBottom=$atBottom dy=$dy');
-            _sendScrollToParent(dy, via: 'pointer-signal');
+            // evita “lotta” col child
+            GestureBinding.instance.pointerSignalResolver.register(ps, (_) {});
+            _queueScroll(dy, via: 'pointer-signal');
           }
         }
       },
+
       child: NotificationListener<ScrollNotification>(
         onNotification: (n) {
           if (n.metrics.axis != Axis.vertical) return false;
-
           _lastMetrics = n.metrics;
 
-          // 1) Overscroll vero (se c’è)
+          final m = n.metrics;
+          final atTop = _atTop(m);
+          final atBottom = _atBottom(m);
+
+          // 1) Touch-drag: QUESTO È IL FIX
+          // dragDetails esiste durante il drag touch e continua anche quando sei “pinnato” al bordo.
+          if (n is ScrollUpdateNotification && n.dragDetails != null) {
+            final fingerDy = n.dragDetails!.delta.dy;
+
+            // Convertiamo movimento dito -> scroll host:
+            // dito giù => pagina host dovrebbe salire => deltaY negativo
+            final hostDy = (-fingerDy) * widget.touchGain;
+
+            // manda solo se stai tentando di “uscire” dal contenuto
+            if ((atBottom && hostDy > 0) || (atTop && hostDy < 0)) {
+              _log('✋ touch-edge: atTop=$atTop atBottom=$atBottom fingerDy=$fingerDy hostDy=$hostDy');
+              _queueScroll(hostDy, via: 'touch-edge');
+              return false;
+            }
+          }
+
+          // 2) Mantieni i tuoi segnali (fallback)
           if (n is OverscrollNotification) {
             _log('🔥 OverscrollNotification overscroll=${n.overscroll}');
-            _sendScrollToParent(n.overscroll, via: 'overscroll');
+            _queueScroll(n.overscroll, via: 'overscroll');
             return false;
           }
 
-          // 2) Edge-delta: quando sei al bordo e lo scroll “cerca” di andare oltre
           if (n is ScrollUpdateNotification) {
             final d = n.scrollDelta ?? 0.0;
-            final m = n.metrics;
-
-            final atTop = _atTop(m);
-            final atBottom = _atBottom(m);
-
             if ((atBottom && d > 0) || (atTop && d < 0)) {
-              _log('⚠ ScrollUpdate atEdge: atTop=$atTop atBottom=$atBottom delta=$d');
-              _sendScrollToParent(d, via: 'edge-delta');
+              _log('⚠ edge-delta: atTop=$atTop atBottom=$atBottom delta=$d');
+              _queueScroll(d, via: 'edge-delta');
             }
           }
 
