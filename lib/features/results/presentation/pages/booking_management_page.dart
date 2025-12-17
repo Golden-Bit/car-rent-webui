@@ -58,7 +58,7 @@ class _BookingManagementPageState extends State<BookingManagementPage> {
       backgroundColor: Colors.grey[50],
       body: Center(
         child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+          //physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),

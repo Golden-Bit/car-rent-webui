@@ -21,6 +21,35 @@ import 'features/results/presentation/pages/booking_management_page.dart';
 // Deep link / Config iniziale
 import 'core/deeplink/initial_config.dart';
 
+
+import 'package:flutter/gestures.dart';
+
+class EmbeddedScrollBehavior extends MaterialScrollBehavior {
+  const EmbeddedScrollBehavior();
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    return const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
+  }
+
+  // Consigliato per web: abilita drag anche con mouse/trackpad
+  @override
+  Set<PointerDeviceKind> get dragDevices => const {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.unknown,
+  };
+
+  // Niente glow su Android (opzionale)
+  @override
+  Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) {
+    return child;
+  }
+}
+
+
 /// URL di default per la webapp dei risultati.
 /// (stesso valore usato in main.dart; va bene ridefinirlo per questa libreria)
 const String kDefaultResultsBaseUrl = 'https://www.mysite.com/result_page';
@@ -81,6 +110,7 @@ class _MyrentBookingAppState extends State<MyrentBookingApp> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isEmbedded = Uri.base.queryParameters['is_embedded'] == '1';
     return AppUiFlags(
       showAppBar: widget.showAppBar,
       resultsBaseUrl: widget.resultsBaseUrl,
@@ -88,6 +118,7 @@ class _MyrentBookingAppState extends State<MyrentBookingApp> {
       child: IframeScrollBridge(
   enabled: widget.isEmbedded, // usa già il tuo flag is_embedded=1
   child:  MaterialApp(
+        scrollBehavior: isEmbedded ? const EmbeddedScrollBehavior() : const MaterialScrollBehavior(),
         navigatorKey: rootNavigatorKey,
         debugShowCheckedModeBanner: false,
         title: 'Myrent – Prenotazione',

@@ -199,7 +199,7 @@ StepsHeader(
                 return ScrollConfiguration(
                   behavior: const _NoGlow(),
                   child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                    //physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                     primary: true, // abilita lo scroll anche con mouse/trackpad ovunque
                     child: Center(
                       child: ConstrainedBox(
