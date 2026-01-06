@@ -1,14 +1,23 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-
+// ✅ AGGIUNGI QUESTI 2
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:intl/intl.dart';
 import 'app.dart';
 import 'core/deeplink/initial_config.dart';
 
 /// URL di default per la webapp dei risultati
 const String kDefaultResultsBaseUrl = 'https://www.mysite.com/result_page';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  
+  // ✅ 1) inizializza i simboli data per it_IT (fondamentale su web)
+  await initializeDateFormatting('it_IT', null);
+
+  // ✅ 2) (consigliato) imposta la locale di default per Intl
+  Intl.defaultLocale = 'it_IT';
 
   // Config iniziale (cfg=<base64>) dalla URL
   final InitialConfig? cfg = _readConfigFromUrl();

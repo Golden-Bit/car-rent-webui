@@ -434,7 +434,7 @@ void _postMessageToParent(String url) {
         endUtc: _end!.toUtc(),
         age: _age,
         coupon: _couponCtrl.text.isEmpty ? null : _couponCtrl.text,
-        channel: 'WEB_APP',
+        channel: 'RENTAL_PREMIUM_POA',
         initialStep: 2, // step di ingresso nella webapp risultati
       );
     }

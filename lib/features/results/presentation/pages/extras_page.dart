@@ -47,7 +47,7 @@ final List<InitialExtra> preselectedExtras;
 class _ExtrasPageState extends State<ExtrasPage> {
   int _selectedPlan = -1; // 0=Gold, 1=Platinum, 2=Premium
   final Set<int> _selectedOptionals = {};
-
+late final List<dynamic> _rawOptionals;
   late final int _rentalDays;
   late final List<_OptionalVM> _optionals;
 
@@ -55,7 +55,7 @@ class _ExtrasPageState extends State<ExtrasPage> {
   void _applyPreselectedExtras(List<InitialExtra> xs) {
     if (xs.isEmpty) return;
     for (var i = 0; i < _optionals.length; i++) {
-      final code = _extractCodeFromRaw(widget.dataJson, i);
+      final code = _extractCodeFromRaw(_rawOptionals, i);
       final title = _optionals[i].title.toLowerCase();
       final hit = xs.any((x) {
         final xcode = x.code.toLowerCase();
@@ -65,31 +65,77 @@ class _ExtrasPageState extends State<ExtrasPage> {
     }
     // non setState qui: initState termina prima del primo build
   }
+static List<dynamic> _optionalsForSelected(Map<String, dynamic> dataJson, Offer selected) {
+  List<dynamic>? _pickListFromMap(Map m, List<String> keys) {
+    for (final k in keys) {
+      final v = m[k];
+      if (v is List) return v;
+    }
+    return null;
+  }
+
+  // 1) se l’offerta selezionata porta già optionals
+  final raw = selected.raw;
+  if (raw is Map) {
+    final o = _pickListFromMap(raw, const ['optionals', 'Optionals']);
+    if (o != null) return o;
+  }
+
+  // 2) cerca nel veicolo dentro Vehicles/vehicles matchando un id
+  final vehicles = dataJson['Vehicles'] ?? dataJson['vehicles'];
+  if (vehicles is List) {
+    final wanted = <String>{
+      if (selected.id != null) selected.id!.toString(),
+      if (selected.vehicleId != null) selected.vehicleId!.toString(),
+      if (selected.code != null) selected.code!.toString(),
+    };
+
+    for (final v in vehicles) {
+      if (v is! Map) continue;
+      final vm = (v as Map).cast<String, dynamic>();
+
+      final vid = (vm['VehicleId'] ??
+              vm['vehicleId'] ??
+              vm['id'] ??
+              vm['code'] ??
+              vm['vehicleCode'])
+          ?.toString();
+
+      if (vid != null && wanted.contains(vid)) {
+        final o = _pickListFromMap(vm, const ['optionals', 'Optionals']);
+        if (o != null) return o;
+      }
+    }
+  }
+
+  // 3) fallback: root optionals
+  final root = dataJson['optionals'] ?? dataJson['Optionals'];
+  return (root is List) ? root : const [];
+}
 
   // NEW: estrae il codice raw dell'optional (EquipType o Description)
-  String? _extractCodeFromRaw(Map<String, dynamic> data, int index) {
-    final list = data['optionals'];
-    if (list is! List || index < 0 || index >= list.length) return null;
-    final m = (list[index] as Map).cast<String, dynamic>();
-    final equip = (m['Equipment'] as Map?)?.cast<String, dynamic>();
-    return (equip?['EquipType'] as String?) ??
-           (equip?['Description'] as String?);
-  }
+String? _extractCodeFromRaw(List<dynamic> list, int index) {
+  if (index < 0 || index >= list.length) return null;
+  final m = (list[index] as Map).cast<String, dynamic>();
+  final equip = (m['Equipment'] as Map?)?.cast<String, dynamic>();
+  return (equip?['EquipType'] as String?) ?? (equip?['Description'] as String?);
+}
 
   // NEW: totale grezzo degli extra selezionati, rispettando isMultipliable * giorni
   num get _extrasTotalRaw {
-    final list = widget.dataJson['optionals'];
-    if (list is! List) return 0;
-    num sum = 0;
-    for (final idx in _selectedOptionals) {
-      final raw = (list[idx] as Map).cast<String, dynamic>();
-      final charge = (raw['Charge'] as Map?)?.cast<String, dynamic>() ?? const {};
-      final equip  = (raw['Equipment'] as Map?)?.cast<String, dynamic>() ?? const {};
-      final amount = (charge['Amount'] as num?) ?? 0;
-      final perDay = (equip['isMultipliable'] as bool?) ?? true;
-      sum += perDay ? amount * _rentalDays : amount;
-    }
-    return sum;
+final list = _rawOptionals;
+num sum = 0;
+for (final idx in _selectedOptionals) {
+  if (idx < 0 || idx >= list.length) continue;
+  final raw = (list[idx] as Map).cast<String, dynamic>();
+  final charge = (raw['Charge'] as Map?)?.cast<String, dynamic>() ?? const {};
+  final equip  = (raw['Equipment'] as Map?)?.cast<String, dynamic>() ?? const {};
+  final amount = (charge['Amount'] as num?) ?? 0;
+  final perDay = (equip['isMultipliable'] as bool?) ?? true;
+  sum += perDay ? amount * _rentalDays : amount;
+}
+return sum;
+
   }
 
   // NEW: formato stringa per StepsHeader
@@ -129,14 +175,19 @@ class _ExtrasPageState extends State<ExtrasPage> {
     return _formatMoney(total, 'EUR');
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _rentalDays = _computeRentalDays(widget.dataJson);
-    _optionals = _readOptionals(widget.dataJson);
+@override
+void initState() {
+  super.initState();
+  _rentalDays = _computeRentalDays(widget.dataJson);
 
-    _applyPreselectedExtras(widget.preselectedExtras); // NEW
-  }
+  // ✅ qui scegli la lista optionals giusta (per veicolo se presente)
+  _rawOptionals = _optionalsForSelected(widget.dataJson, widget.selected);
+
+  // ✅ costruisci la VM dalla lista corretta (non da dataJson root)
+  _optionals = _readOptionals(_rawOptionals);
+
+  _applyPreselectedExtras(widget.preselectedExtras);
+}
 
 @override
 Widget build(BuildContext context) {
@@ -306,7 +357,7 @@ Widget build(BuildContext context) {
 onPressed: () {
   // 1) Costruisci la lista di InitialExtra dai selezionati
   final extras = <InitialExtra>[];
-  final rawList = (widget.dataJson['optionals'] as List?) ?? const [];
+  final rawList = _rawOptionals;
   for (final idx in _selectedOptionals) {
     if (idx < 0 || idx >= rawList.length) continue;
     final raw = (rawList[idx] as Map).cast<String, dynamic>();
@@ -385,67 +436,102 @@ Navigator.pushNamed(
     }
   }
 
-  static List<_OptionalVM> _readOptionals(Map<String, dynamic> data) {
-    final list = data['optionals'];
-    if (list is! List) return const [];
-    return list.map<_OptionalVM>((raw) {
-      final m = (raw is Map) ? raw.cast<String, dynamic>() : <String, dynamic>{};
-      final charge = (m['Charge'] is Map)
-          ? (m['Charge'] as Map).cast<String, dynamic>()
-          : <String, dynamic>{};
-      final equip = (m['Equipment'] is Map)
-          ? (m['Equipment'] as Map).cast<String, dynamic>()
-          : <String, dynamic>{};
+ static List<_OptionalVM> _readOptionals(List<dynamic> list) {
+  if (list.isEmpty) return const [];
+  return list.map<_OptionalVM>((raw) {
+    final m = (raw is Map) ? raw.cast<String, dynamic>() : <String, dynamic>{};
+    final charge = (m['Charge'] is Map)
+        ? (m['Charge'] as Map).cast<String, dynamic>()
+        : <String, dynamic>{};
+    final equip = (m['Equipment'] is Map)
+        ? (m['Equipment'] as Map).cast<String, dynamic>()
+        : <String, dynamic>{};
 
-      final amount = (charge['Amount'] as num?)?.toDouble();
-      final currency = charge['CurrencyCode'] as String?;
-      final desc = (equip['Description'] ?? '').toString();
-      final isPerDay = (equip['isMultipliable'] as bool?) ?? true;
-      final image = equip['optionalImage']?.toString();
+    final amount = (charge['Amount'] as num?)?.toDouble();
+    final currency = charge['CurrencyCode'] as String?;
+    final desc = (equip['Description'] ?? '').toString();
+    final isPerDay = (equip['isMultipliable'] as bool?) ?? true;
+    final image = equip['optionalImage']?.toString();
 
-      return _OptionalVM(
-        title: desc.isEmpty ? 'Optional' : desc,
-        price: _formatMoney(amount, currency),
-        perDay: isPerDay,
-        imageUrl: image,
-      );
-    }).toList();
+    return _OptionalVM(
+      title: desc.isEmpty ? 'Optional' : desc,
+      price: _formatMoney(amount, currency),
+      perDay: isPerDay,
+      imageUrl: image,
+    );
+  }).toList();
+}
+
+
+static String? _formatHeaderPrice(Map<String, dynamic> dataJson, Offer selected) {
+  String? _fmt(num? amount, String? currencyCode) {
+    if (amount == null) return null;
+    final symbol =
+        (currencyCode == null || currencyCode == 'EUR') ? '€' : currencyCode;
+    try {
+      return NumberFormat.currency(locale: 'it_IT', symbol: symbol).format(amount);
+    } catch (_) {
+      return '$symbol ${amount.toStringAsFixed(2)}';
+    }
   }
 
-  static String? _formatHeaderPrice(Map<String, dynamic> dataJson, Offer selected) {
-    String? _fmt(num? amount, String? currencyCode) {
-      if (amount == null) return null;
-      final symbol =
-          (currencyCode == 'EUR' || currencyCode == null) ? '€' : currencyCode;
-      try {
-        return NumberFormat.currency(locale: 'it_IT', symbol: symbol).format(amount);
-      } catch (_) {
-        return '$symbol ${amount.toStringAsFixed(2)}';
+  // 1) SORGENTE MIGLIORE: il totale già calcolato per quella Offer (di solito è quello usato in Results list)
+  final num? offerTotal = selected.total; // <-- questa property esiste nel tuo progetto (la usi per sort)
+  if (offerTotal != null) {
+    return _fmt(offerTotal, 'EUR');
+  }
+
+  // helper: prende una mappa "TotalCharge" supportando più chiavi
+  Map<String, dynamic>? _extractTotalChargeFrom(dynamic raw) {
+    if (raw is! Map) return null;
+    final m = raw.cast<String, dynamic>();
+    final tc = m['TotalCharge'] ?? m['total_charge']; // <-- supporto doppia chiave
+    if (tc is Map) return Map<String, dynamic>.from(tc);
+    return null;
+  }
+
+  num? _amountFromTc(Map<String, dynamic>? tc) {
+    if (tc == null) return null;
+    return (tc['RateTotalAmount'] as num?) ?? (tc['EstimatedTotalAmount'] as num?);
+  }
+
+  String? _currFromTc(Map<String, dynamic>? tc) {
+    if (tc == null) return null;
+    return tc['CurrencyCode'] as String?;
+  }
+
+  // 2) seconda scelta: totale dentro selected.raw (supporta TotalCharge e total_charge)
+  final tcFromRaw = _extractTotalChargeFrom(selected.raw);
+  final formattedFromRaw = _fmt(_amountFromTc(tcFromRaw), _currFromTc(tcFromRaw));
+  if (formattedFromRaw != null) return formattedFromRaw;
+
+  // 3) ultima spiaggia: match dentro dataJson['Vehicles'] (MAI root dataJson['TotalCharge'])
+  final vehicles = dataJson['Vehicles'];
+  if (vehicles is List) {
+    final wantedIds = <String>{
+      if (selected.id != null) selected.id!.toString(),
+      if (selected.vehicleId != null) selected.vehicleId!.toString(),
+      if (selected.code != null) selected.code!.toString(),
+    };
+
+    for (final v in vehicles) {
+      if (v is! Map) continue;
+      final vm = v.cast<String, dynamic>();
+
+      final vid = (vm['VehicleId'] ?? vm['vehicleId'] ?? vm['id'] ?? vm['Id'] ?? vm['Code'] ?? vm['code'])
+          ?.toString();
+
+      if (vid != null && wantedIds.contains(vid)) {
+        final tcV = _extractTotalChargeFrom(vm);
+        final formattedV = _fmt(_amountFromTc(tcV), _currFromTc(tcV));
+        if (formattedV != null) return formattedV;
       }
     }
-
-    final tc = (dataJson['TotalCharge'] is Map)
-        ? Map<String, dynamic>.from(dataJson['TotalCharge'] as Map)
-        : null;
-
-    final num? amountFromData =
-        (tc?['RateTotalAmount'] as num?) ?? (tc?['EstimatedTotalAmount'] as num?);
-    final String? currFromData = tc?['CurrencyCode'] as String?;
-
-    final formattedFromData = _fmt(amountFromData, currFromData);
-    if (formattedFromData != null) return formattedFromData;
-
-    final raw = selected.raw;
-    final tc2 = (raw is Map && raw['TotalCharge'] is Map)
-        ? Map<String, dynamic>.from(raw['TotalCharge'] as Map)
-        : null;
-
-    final num? amountFromRaw =
-        (tc2?['RateTotalAmount'] as num?) ?? (tc2?['EstimatedTotalAmount'] as num?);
-    final String? currFromRaw = tc2?['CurrencyCode'] as String?;
-
-    return _fmt(amountFromRaw, currFromRaw);
   }
+
+  // se arrivi qui: non c'è un totale leggibile
+  return null;
+}
 
   static String? _displayLocationName(
     Map<String, dynamic> m, {

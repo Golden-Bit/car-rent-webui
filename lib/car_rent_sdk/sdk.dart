@@ -1,9 +1,28 @@
 // ignore_for_file: non_constant_identifier_names
 
-library myrent_sdk;
+//library myrent_sdk;
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+
+/* ===========================
+ *          ENUMS
+ * ===========================
+ */
+
+/// Sorgente dati della wrapper:
+/// - DEFAULT: mock locale
+/// - MYRENT: live via adapter/SDK python
+enum DataSource { DEFAULT, MYRENT }
+
+extension DataSourceX on DataSource {
+  String get value => this == DataSource.MYRENT ? 'MYRENT' : 'DEFAULT';
+}
+
+/* ===========================
+ *          ERRORS
+ * ===========================
+ */
 
 /// Eccezione API
 class ApiException implements Exception {
@@ -18,12 +37,19 @@ class ApiException implements Exception {
       'ApiException(statusCode=$statusCode, uri=$uri, body=$body)';
 }
 
+/* ===========================
+ *          CLIENT
+ * ===========================
+ */
+
 /// Client principale
 class MyrentClient {
   final String baseUrl;
   final String apiKey;
   final http.Client _client;
   final Map<String, String> _defaultHeaders;
+
+  late final String _base; // baseUrl normalizzato (senza trailing slash)
 
   MyrentClient({
     required this.baseUrl,
@@ -34,11 +60,20 @@ class MyrentClient {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'X-API-Key': apiKey,
-        };
+        } {
+    _base = baseUrl.replaceAll(RegExp(r'/+$'), '');
+  }
+
+  Uri _uri(String path, {Map<String, String>? query}) {
+    final p = path.startsWith('/') ? path : '/$path';
+    final raw = Uri.parse('$_base$p');
+    if (query == null || query.isEmpty) return raw;
+    return raw.replace(queryParameters: query);
+  }
 
   /// GET /health
   Future<Health> getHealth() async {
-    final uri = Uri.parse('$baseUrl/health');
+    final uri = _uri('/health');
     final res = await _client.get(uri, headers: _defaultHeaders);
     if (res.statusCode >= 200 && res.statusCode < 300) {
       return Health.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -46,25 +81,39 @@ class MyrentClient {
     throw ApiException(res.statusCode, res.body, uri);
   }
 
-  /// GET /api/v1/touroperator/locations
-  Future<List<Location>> getLocations() async {
-    final uri = Uri.parse('$baseUrl/api/v1/touroperator/locations');
+  /// GET /api/v1/touroperator/locations?source=...
+  Future<List<Location>> getLocations({DataSource source = DataSource.DEFAULT}) async {
+    final uri = _uri(
+      '/api/v1/touroperator/locations',
+      query: {'source': source.value},
+    );
+
     final res = await _client.get(uri, headers: _defaultHeaders);
     if (res.statusCode >= 200 && res.statusCode < 300) {
       final data = jsonDecode(res.body) as List<dynamic>;
-      return data.map((e) => Location.fromJson(e as Map<String, dynamic>)).toList();
+      return data
+          .map((e) => Location.fromJson(e as Map<String, dynamic>))
+          .toList();
     }
     throw ApiException(res.statusCode, res.body, uri);
   }
 
-  /// POST /api/v1/touroperator/quotations
-  Future<QuotationResponse> createQuotation(QuotationRequest req) async {
-    final uri = Uri.parse('$baseUrl/api/v1/touroperator/quotations');
+  /// POST /api/v1/touroperator/quotations?source=...
+  Future<QuotationResponse> createQuotation(
+    QuotationRequest req, {
+    DataSource source = DataSource.DEFAULT,
+  }) async {
+    final uri = _uri(
+      '/api/v1/touroperator/quotations',
+      query: {'source': source.value},
+    );
+
     final res = await _client.post(
       uri,
       headers: _defaultHeaders,
       body: jsonEncode(req.toJson()),
     );
+
     if (res.statusCode >= 200 && res.statusCode < 300) {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       return QuotationResponse.fromJson(data);
@@ -73,10 +122,11 @@ class MyrentClient {
   }
 
   /// GET /api/v1/touroperator/damages/{plate_or_vin}
-  Future<DamagesResponse> getDamages(String plateOrVin,
-      {String? acceptLanguage}) async {
-    final uri =
-        Uri.parse('$baseUrl/api/v1/touroperator/damages/$plateOrVin');
+  Future<DamagesResponse> getDamages(
+    String plateOrVin, {
+    String? acceptLanguage,
+  }) async {
+    final uri = _uri('/api/v1/touroperator/damages/$plateOrVin');
 
     final headers = Map<String, String>.from(_defaultHeaders);
     if (acceptLanguage != null && acceptLanguage.isNotEmpty) {
@@ -91,10 +141,8 @@ class MyrentClient {
     throw ApiException(res.statusCode, res.body, uri);
   }
 
-  void close() => _client.close();
-
   /// GET /api/v1/touroperator/vehicles
-  /// Facoltativo: legge il catalogo impaginato, utile per avere gli ID "sorgente".
+  /// Legge il catalogo impaginato, utile per avere gli ID "sorgente".
   Future<VehiclesPage> listVehicles({
     String? location,
     int skip = 0,
@@ -105,9 +153,10 @@ class MyrentClient {
       'page_size': '$pageSize',
       if (location != null && location.isNotEmpty) 'location': location,
     };
-    final uri = Uri.parse('$baseUrl/api/v1/touroperator/vehicles')
-        .replace(queryParameters: qs);
+
+    final uri = _uri('/api/v1/touroperator/vehicles', query: qs);
     final res = await _client.get(uri, headers: _defaultHeaders);
+
     if (res.statusCode >= 200 && res.statusCode < 300) {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       return VehiclesPage.fromJson(data);
@@ -117,14 +166,17 @@ class MyrentClient {
 
   /// GET /api/v1/touroperator/vehicles/{id}
   Future<VehicleGroupRaw> getVehicleById(String vehicleId) async {
-    final uri = Uri.parse('$baseUrl/api/v1/touroperator/vehicles/$vehicleId');
+    final uri = _uri('/api/v1/touroperator/vehicles/$vehicleId');
     final res = await _client.get(uri, headers: _defaultHeaders);
-        if (res.statusCode >= 200 && res.statusCode < 300) {
+
+    if (res.statusCode >= 200 && res.statusCode < 300) {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       return VehicleGroupRaw.fromJson(data);
     }
     throw ApiException(res.statusCode, res.body, uri);
   }
+
+  void close() => _client.close();
 }
 
 /// Helper: formatta DateTime in ISO8601 con suffisso Z
@@ -364,10 +416,11 @@ class VehMakeModel {
 
 class BookingVehicle {
   final String? id;
+
   // Codici
   final String Code;
   final String? CodeContext;
-  final String? nationalCode; // <-- NEW (alias "nationalCode")
+  final String? nationalCode; // alias "nationalCode"
 
   // Nome/branding
   final List<VehMakeModel> vehMakeModels; // JSON: "VehMakeModel"
@@ -379,10 +432,10 @@ class BookingVehicle {
   final String? VendorCarMacroGroup;
   final String? VendorCarType;
 
-  // Specifiche veicolo (NEW)
+  // Specifiche veicolo
   final int? seats;
   final int? doors;
-  /// 'M' = Manuale, 'A' = Automatico (valore grezzo backend)
+  /// 'M' = Manuale, 'A' = Automatico
   final String? transmission;
   /// 'PETROL' | 'DIESEL' | 'ELECTRIC' | ...
   final String? fuel;
@@ -395,8 +448,8 @@ class BookingVehicle {
   final String? color;
   final String? plate_no;
   final String? chasis_no;
-  final List<String> locations; // <-- NEW
-  final List<String> plates;    // <-- NEW
+  final List<String> locations;
+  final List<String> plates;
 
   BookingVehicle({
     this.id,
@@ -424,43 +477,42 @@ class BookingVehicle {
     this.plates = const [],
   });
 
-  factory BookingVehicle.fromJson(Map<String, dynamic> json) => BookingVehicle(
-        id: json['id']?.toString(),
-        Code: json['Code'] as String,
-        CodeContext: json['CodeContext'] as String?,
-        nationalCode: json['nationalCode'] as String?,
-        vehMakeModels: (json['VehMakeModel'] as List<dynamic>? ?? [])
-            .map((e) => VehMakeModel.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        model: json['model'] as String?,
-        brand: json['brand'] as String?,
-        version: json['version'] as String?,
-        VendorCarMacroGroup: json['VendorCarMacroGroup'] as String?,
-        VendorCarType: json['VendorCarType'] as String?,
+  factory BookingVehicle.fromJson(Map<String, dynamic> json) {
+    final dr = json['dailyRate'] ?? json['daily_rate'];
+    final img = json['imageUrl'] ?? json['image_url'];
 
-        // NEW fields
-        seats: (json['seats'] as num?)?.toInt(),
-        doors: (json['doors'] as num?)?.toInt(),
-        transmission: json['transmission'] as String?,
-        fuel: json['fuel'] as String?,
-        aircon: json['aircon'] as bool?,
-        imageUrl: (json['imageUrl'] ?? json['image_url']) as String?, // fallback
-        dailyRate: (json['dailyRate'] ?? json['daily_rate']) == null
-            ? null
-            : (json['dailyRate'] ?? json['daily_rate'] as num).toDouble(),
-
-        km: (json['km'] as num?)?.toInt(),
-        color: json['color'] as String?,
-        plate_no: json['plate_no'] as String?,
-        chasis_no: json['chasis_no'] as String?,
-
-        locations: (json['locations'] as List<dynamic>? ?? [])
-            .map((e) => e.toString())
-            .toList(),
-        plates: (json['plates'] as List<dynamic>? ?? [])
-            .map((e) => e.toString())
-            .toList(),
-      );
+    return BookingVehicle(
+      id: json['id']?.toString(),
+      Code: json['Code'] as String,
+      CodeContext: json['CodeContext'] as String?,
+      nationalCode: json['nationalCode'] as String?,
+      vehMakeModels: (json['VehMakeModel'] as List<dynamic>? ?? [])
+          .map((e) => VehMakeModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      model: json['model'] as String?,
+      brand: json['brand'] as String?,
+      version: json['version'] as String?,
+      VendorCarMacroGroup: json['VendorCarMacroGroup'] as String?,
+      VendorCarType: json['VendorCarType'] as String?,
+      seats: (json['seats'] as num?)?.toInt(),
+      doors: (json['doors'] as num?)?.toInt(),
+      transmission: json['transmission'] as String?,
+      fuel: json['fuel'] as String?,
+      aircon: json['aircon'] as bool?,
+      imageUrl: img as String?,
+      dailyRate: dr == null ? null : (dr as num).toDouble(),
+      km: (json['km'] as num?)?.toInt(),
+      color: json['color'] as String?,
+      plate_no: json['plate_no'] as String?,
+      chasis_no: json['chasis_no'] as String?,
+      locations: (json['locations'] as List<dynamic>? ?? [])
+          .map((e) => e.toString())
+          .toList(),
+      plates: (json['plates'] as List<dynamic>? ?? [])
+          .map((e) => e.toString())
+          .toList(),
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         if (id != null) 'id': id,
@@ -474,8 +526,6 @@ class BookingVehicle {
         if (VendorCarMacroGroup != null)
           'VendorCarMacroGroup': VendorCarMacroGroup,
         if (VendorCarType != null) 'VendorCarType': VendorCarType,
-
-        // NEW fields
         if (seats != null) 'seats': seats,
         if (doors != null) 'doors': doors,
         if (transmission != null) 'transmission': transmission,
@@ -483,7 +533,6 @@ class BookingVehicle {
         if (aircon != null) 'aircon': aircon,
         if (imageUrl != null) 'imageUrl': imageUrl,
         if (dailyRate != null) 'dailyRate': dailyRate,
-
         if (km != null) 'km': km,
         if (color != null) 'color': color,
         if (plate_no != null) 'plate_no': plate_no,
@@ -492,12 +541,10 @@ class BookingVehicle {
         if (plates.isNotEmpty) 'plates': plates,
       };
 
-  // (facoltative) utility utili alla UI
   bool get isAutomatic => (transmission ?? '').toUpperCase() == 'A';
   bool get hasAircon => aircon == true;
   int? get idAsInt => id == null ? null : int.tryParse(id!);
 }
-
 
 class VehicleParameter {
   // JSON keys hanno i due punti (!)
@@ -541,50 +588,6 @@ class GroupPic {
       );
 
   Map<String, dynamic> toJson() => {'id': id, if (url != null) 'url': url};
-}
-
-class VehicleStatus {
-  final String Status;
-  final Map<String, dynamic>? Reference;
-  final BookingVehicle Vehicle;
-  final List<VehicleParameter>? vehicleParameter;
-  final List<String>? vehicleExtraImage;
-  final GroupPic? groupPic;
-
-  VehicleStatus({
-    required this.Status,
-    required this.Reference,
-    required this.Vehicle,
-    this.vehicleParameter,
-    this.vehicleExtraImage,
-    this.groupPic,
-  });
-
-  factory VehicleStatus.fromJson(Map<String, dynamic> json) => VehicleStatus(
-        Status: json['Status'] as String,
-        Reference: (json['Reference'] as Map?)?.cast<String, dynamic>(),
-        Vehicle: BookingVehicle.fromJson(
-            json['Vehicle'] as Map<String, dynamic>),
-        vehicleParameter: (json['vehicleParameter'] as List<dynamic>?)
-            ?.map((e) => VehicleParameter.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        vehicleExtraImage: (json['vehicleExtraImage'] as List<dynamic>?)
-            ?.map((e) => e.toString())
-            .toList(),
-        groupPic: json['groupPic'] == null
-            ? null
-            : GroupPic.fromJson(json['groupPic'] as Map<String, dynamic>),
-      );
-
-  Map<String, dynamic> toJson() => {
-        'Status': Status,
-        if (Reference != null) 'Reference': Reference,
-        'Vehicle': Vehicle.toJson(),
-        if (vehicleParameter != null)
-          'vehicleParameter': vehicleParameter!.map((e) => e.toJson()).toList(),
-        if (vehicleExtraImage != null) 'vehicleExtraImage': vehicleExtraImage,
-        if (groupPic != null) 'groupPic': groupPic!.toJson(),
-      };
 }
 
 class Charge {
@@ -695,6 +698,72 @@ class TotalCharge {
       };
 }
 
+/// ✅ UPDATE: ora VehicleStatus può contenere optionals e TotalCharge (schema nuovo)
+class VehicleStatus {
+  final String Status;
+  final Map<String, dynamic>? Reference;
+  final BookingVehicle Vehicle;
+  final List<VehicleParameter>? vehicleParameter;
+  final List<String>? vehicleExtraImage;
+  final GroupPic? groupPic;
+
+  /// ✅ NEW (schema nuovo): optionals per veicolo
+  final List<OptionalItem> optionals;
+
+  /// ✅ NEW (schema nuovo): TotalCharge per veicolo (chiave JSON: "TotalCharge")
+  final TotalCharge? TotalChargeJson;
+
+  VehicleStatus({
+    required this.Status,
+    required this.Reference,
+    required this.Vehicle,
+    this.vehicleParameter,
+    this.vehicleExtraImage,
+    this.groupPic,
+    this.optionals = const [],
+    this.TotalChargeJson,
+  });
+
+  factory VehicleStatus.fromJson(Map<String, dynamic> json) => VehicleStatus(
+        Status: json['Status'] as String,
+        Reference: (json['Reference'] as Map?)?.cast<String, dynamic>(),
+        Vehicle: BookingVehicle.fromJson(
+            json['Vehicle'] as Map<String, dynamic>),
+        vehicleParameter: (json['vehicleParameter'] as List<dynamic>?)
+            ?.map((e) => VehicleParameter.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        vehicleExtraImage: (json['vehicleExtraImage'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList(),
+        groupPic: json['groupPic'] == null
+            ? null
+            : GroupPic.fromJson(json['groupPic'] as Map<String, dynamic>),
+
+        // ✅ schema nuovo
+        optionals: (json['optionals'] as List<dynamic>? ?? [])
+            .map((e) => OptionalItem.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        TotalChargeJson: json['TotalCharge'] == null
+            ? null
+            : TotalCharge.fromJson(json['TotalCharge'] as Map<String, dynamic>),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'Status': Status,
+        if (Reference != null) 'Reference': Reference,
+        'Vehicle': Vehicle.toJson(),
+        if (vehicleParameter != null)
+          'vehicleParameter': vehicleParameter!.map((e) => e.toJson()).toList(),
+        if (vehicleExtraImage != null) 'vehicleExtraImage': vehicleExtraImage,
+        if (groupPic != null) 'groupPic': groupPic!.toJson(),
+
+        // ✅ schema nuovo
+        if (optionals.isNotEmpty)
+          'optionals': optionals.map((e) => e.toJson()).toList(),
+        if (TotalChargeJson != null) 'TotalCharge': TotalChargeJson!.toJson(),
+      };
+}
+
 class QuotationData {
   final int total;
   final String PickUpLocation;
@@ -702,9 +771,12 @@ class QuotationData {
   final String PickUpDateTime;
   final String ReturnDateTime;
   final List<VehicleStatus> Vehicles;
+
+  /// ⚠️ BACKWARD-COMPAT (vecchia wrapper):
+  /// prima erano a root; ora (nuova wrapper) NON arrivano più.
+  /// Li manteniamo opzionali e (se assenti) li ricaviamo dal primo veicolo.
   final List<OptionalItem> optionals;
-  // JSON usa "TotalCharge"
-  final TotalCharge TotalChargeJson;
+  final TotalCharge? TotalChargeJson;
 
   QuotationData({
     required this.total,
@@ -713,25 +785,40 @@ class QuotationData {
     required this.PickUpDateTime,
     required this.ReturnDateTime,
     required this.Vehicles,
-    required this.optionals,
-    required this.TotalChargeJson,
+    this.optionals = const [],
+    this.TotalChargeJson,
   });
 
-  factory QuotationData.fromJson(Map<String, dynamic> json) => QuotationData(
-        total: (json['total'] as num).toInt(),
-        PickUpLocation: json['PickUpLocation'] as String,
-        ReturnLocation: json['ReturnLocation'] as String,
-        PickUpDateTime: json['PickUpDateTime'] as String,
-        ReturnDateTime: json['ReturnDateTime'] as String,
-        Vehicles: (json['Vehicles'] as List<dynamic>)
-            .map((e) => VehicleStatus.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        optionals: (json['optionals'] as List<dynamic>? ?? [])
-            .map((e) => OptionalItem.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        TotalChargeJson: TotalCharge.fromJson(
-            json['TotalCharge'] as Map<String, dynamic>),
-      );
+  factory QuotationData.fromJson(Map<String, dynamic> json) {
+    final vehicles = (json['Vehicles'] as List<dynamic>)
+        .map((e) => VehicleStatus.fromJson(e as Map<String, dynamic>))
+        .toList();
+
+    // root (vecchio schema)
+    final rootOptionals = (json['optionals'] as List<dynamic>?)
+            ?.map((e) => OptionalItem.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        const <OptionalItem>[];
+
+    final rootTotalCharge = json['TotalCharge'] == null
+        ? null
+        : TotalCharge.fromJson(json['TotalCharge'] as Map<String, dynamic>);
+
+    // fallback (nuovo schema): prendo dal primo veicolo (utile per non rompere UI legacy)
+    final fallbackOptionals = vehicles.isNotEmpty ? vehicles.first.optionals : const <OptionalItem>[];
+    final fallbackTotalCharge = vehicles.isNotEmpty ? vehicles.first.TotalChargeJson : null;
+
+    return QuotationData(
+      total: (json['total'] as num).toInt(),
+      PickUpLocation: json['PickUpLocation'] as String,
+      ReturnLocation: json['ReturnLocation'] as String,
+      PickUpDateTime: json['PickUpDateTime'] as String,
+      ReturnDateTime: json['ReturnDateTime'] as String,
+      Vehicles: vehicles,
+      optionals: rootOptionals.isNotEmpty ? rootOptionals : fallbackOptionals,
+      TotalChargeJson: rootTotalCharge ?? fallbackTotalCharge,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'total': total,
@@ -740,8 +827,11 @@ class QuotationData {
         'PickUpDateTime': PickUpDateTime,
         'ReturnDateTime': ReturnDateTime,
         'Vehicles': Vehicles.map((e) => e.toJson()).toList(),
-        'optionals': optionals.map((e) => e.toJson()).toList(),
-        'TotalCharge': TotalChargeJson.toJson(),
+
+        // compat
+        if (optionals.isNotEmpty)
+          'optionals': optionals.map((e) => e.toJson()).toList(),
+        if (TotalChargeJson != null) 'TotalCharge': TotalChargeJson!.toJson(),
       };
 }
 
@@ -908,10 +998,12 @@ class DamagesResponse {
   Map<String, dynamic> toJson() => {'data': data.toJson()};
 }
 
+/* ------ Vehicles catalog ------ */
+
 /// Item catalogo veicoli così come nel JSON originale.
 /// Manteniamo solo i campi principali + un contenitore per extra.
 class VehicleGroupRaw {
-  final String? id;                // normalizzato a String
+  final String? id; // normalizzato a String
   final String? national_code;
   final String international_code;
   final String? description;
@@ -958,10 +1050,24 @@ class VehicleGroupRaw {
   factory VehicleGroupRaw.fromJson(Map<String, dynamic> json) {
     final map = Map<String, dynamic>.from(json);
     final knownKeys = {
-      'id','national_code','international_code','description','display_name',
-      'vendor_macro','vehicle_type','seats','doors','transmission','fuel',
-      'aircon','image_url','daily_rate','locations','plates',
-      'vehicle_parameters','damages'
+      'id',
+      'national_code',
+      'international_code',
+      'description',
+      'display_name',
+      'vendor_macro',
+      'vehicle_type',
+      'seats',
+      'doors',
+      'transmission',
+      'fuel',
+      'aircon',
+      'image_url',
+      'daily_rate',
+      'locations',
+      'plates',
+      'vehicle_parameters',
+      'damages'
     };
 
     // estrai extra
@@ -985,8 +1091,12 @@ class VehicleGroupRaw {
       aircon: map['aircon'] as bool?,
       image_url: map['image_url'] as String?,
       daily_rate: (map['daily_rate'] as num?)?.toDouble(),
-      locations: (map['locations'] as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
-      plates: (map['plates'] as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
+      locations: (map['locations'] as List<dynamic>? ?? [])
+          .map((e) => e.toString())
+          .toList(),
+      plates: (map['plates'] as List<dynamic>? ?? [])
+          .map((e) => e.toString())
+          .toList(),
       vehicle_parameters: (map['vehicle_parameters'] as List<dynamic>?)
           ?.map((e) => Map<String, dynamic>.from(e as Map))
           .toList(),

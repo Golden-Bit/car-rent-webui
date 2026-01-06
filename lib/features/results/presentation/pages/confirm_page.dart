@@ -5,6 +5,7 @@ import 'package:car_rent_webui/app.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/deeplink/initial_config.dart';
 import '../../../../core/widgets/top_nav_bar.dart';
@@ -1102,31 +1103,33 @@ StepsHeader(
     _step3ExtrasTotal = null;
   }
 
-  static String? _fmtDate(String? iso) {
-    if (iso == null || iso.isEmpty) return null;
-    try {
-      final dt = DateTime.parse(iso).toLocal();
-      String two(int n) => n.toString().padLeft(2, '0');
-      const it = [
-        'gen',
-        'feb',
-        'mar',
-        'apr',
-        'mag',
-        'giu',
-        'lug',
-        'ago',
-        'set',
-        'ott',
-        'nov',
-        'dic'
-      ];
-      final mon = it[(dt.month - 1).clamp(0, 11)];
-      return '${dt.day} $mon, ${dt.year} ${two(dt.hour)}:${two(dt.minute)}';
-    } catch (_) {
-      return iso;
-    }
+static String? _fmtDate(String? iso) {
+  if (iso == null || iso.trim().isEmpty) return null;
+
+  final raw = iso.trim();
+
+  // parse più robusto (gestisce anche "2025-01-02 10:30:00")
+  final dt = DateTime.tryParse(raw) ?? DateTime.tryParse(raw.replaceFirst(' ', 'T'));
+  if (dt == null) {
+    debugPrint('[DATE] parse FAILED -> "$raw"');
+    return raw; // grezzo
   }
+
+  // intl
+  try {
+    return DateFormat('d MMM, y HH:mm', 'it_IT').format(dt.toLocal());
+  } catch (e) {
+    debugPrint('[DATE] intl format FAILED -> "$raw" | err=$e');
+  }
+
+  // fallback manuale (così non perdi mai il formato)
+  final d = dt.toLocal();
+  const it = ['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'];
+  String two(int n) => n.toString().padLeft(2, '0');
+  final mon = it[(d.month - 1).clamp(0, 11)];
+  return '${d.day} $mon, ${d.year} ${two(d.hour)}:${two(d.minute)}';
+}
+
 
   static String? _displayLocationName(
     Map<String, dynamic> m, {
@@ -1151,32 +1154,72 @@ StepsHeader(
     }
   }
 
-  static String? _formatHeaderPrice(Map<String, dynamic> dataJson, Offer? selected) {
-    String? _fmt(num? amount, String? currencyCode) {
-      if (amount == null) return null;
-      final symbol =
-          (currencyCode == null || currencyCode == 'EUR') ? '€' : currencyCode;
+static String? _formatHeaderPrice(Map<String, dynamic> dataJson, Offer? selected) {
+  String? _fmt(num? amount, String? currencyCode) {
+    if (amount == null) return null;
+    final symbol =
+        (currencyCode == null || currencyCode == 'EUR') ? '€' : currencyCode;
+    try {
+      return NumberFormat.currency(locale: 'it_IT', symbol: symbol).format(amount);
+    } catch (_) {
       return '$symbol ${amount.toStringAsFixed(2)}';
     }
-
-    final tc = (dataJson['TotalCharge'] is Map)
-        ? Map<String, dynamic>.from(dataJson['TotalCharge'] as Map)
-        : null;
-    final num? amountFromData =
-        (tc?['RateTotalAmount'] as num?) ?? (tc?['EstimatedTotalAmount'] as num?);
-    final String? currFromData = tc?['CurrencyCode'] as String?;
-    final formattedFromData = _fmt(amountFromData, currFromData);
-    if (formattedFromData != null) return formattedFromData;
-
-    final raw = selected?.raw;
-    final tc2 = (raw is Map && raw?['TotalCharge'] is Map)
-        ? Map<String, dynamic>.from(raw?['TotalCharge'] as Map)
-        : null;
-    final num? amountFromRaw =
-        (tc2?['RateTotalAmount'] as num?) ?? (tc2?['EstimatedTotalAmount'] as num?);
-    final String? currFromRaw = tc2?['CurrencyCode'] as String?;
-    return _fmt(amountFromRaw, currFromRaw);
   }
+
+  if (selected == null) return null;
+
+  // 1) preferisci il totale dell'offerta selezionata
+  final num? offerTotal = selected.total;
+  if (offerTotal != null) return _fmt(offerTotal, 'EUR');
+
+  Map<String, dynamic>? _extractTotalChargeFrom(dynamic raw) {
+    if (raw is! Map) return null;
+    final m = raw.cast<String, dynamic>();
+    final tc = m['TotalCharge'] ?? m['total_charge'];
+    if (tc is Map) return Map<String, dynamic>.from(tc);
+    return null;
+  }
+
+  num? _amountFromTc(Map<String, dynamic>? tc) {
+    if (tc == null) return null;
+    return (tc['RateTotalAmount'] as num?) ?? (tc['EstimatedTotalAmount'] as num?);
+  }
+
+  String? _currFromTc(Map<String, dynamic>? tc) {
+    if (tc == null) return null;
+    return tc['CurrencyCode'] as String?;
+  }
+
+  // 2) prova dal raw della selected
+  final tcFromRaw = _extractTotalChargeFrom(selected.raw);
+  final fromRaw = _fmt(_amountFromTc(tcFromRaw), _currFromTc(tcFromRaw));
+  if (fromRaw != null) return fromRaw;
+
+  // 3) ultima spiaggia: match in Vehicles
+  final vehicles = dataJson['Vehicles'];
+  if (vehicles is List) {
+    final wantedIds = <String>{
+      if (selected.id != null) selected.id!.toString(),
+      if (selected.vehicleId != null) selected.vehicleId!.toString(),
+      if (selected.code != null) selected.code!.toString(),
+    };
+
+    for (final v in vehicles) {
+      if (v is! Map) continue;
+      final vm = v.cast<String, dynamic>();
+      final vid = (vm['VehicleId'] ?? vm['vehicleId'] ?? vm['id'] ?? vm['Id'] ?? vm['Code'] ?? vm['code'])
+          ?.toString();
+
+      if (vid != null && wantedIds.contains(vid)) {
+        final tcV = _extractTotalChargeFrom(vm);
+        final fromV = _fmt(_amountFromTc(tcV), _currFromTc(tcV));
+        if (fromV != null) return fromV;
+      }
+    }
+  }
+
+  return null;
+}
 
   static String _formatMoney(num amount, String? currency) {
     final sym = (currency == null || currency == 'EUR') ? '€' : currency;

@@ -507,7 +507,7 @@ class _ResultsPageState extends State<ResultsPage> {
                                           ),
                                           age: null,
                                           coupon: null,
-                                          channel: 'WEB_APP',
+                                          channel: 'RENTAL_PREMIUM_POA',
                                           initialStep: 3,
                                         ))
                                     .copyWith(
@@ -564,12 +564,16 @@ class _ModernDropdown<T> extends StatefulWidget {
   final String Function(T) itemLabel;
   final ValueChanged<T?> onChanged;
 
+  // NEW: testo della voce "nessun filtro"
+  final String anyLabel; // default "Qualsiasi"
+
   const _ModernDropdown({
     required this.label,
     required this.value,
     required this.items,
     required this.itemLabel,
     required this.onChanged,
+    this.anyLabel = 'Qualsiasi',
   });
 
   @override
@@ -582,7 +586,6 @@ class _ModernDropdownState<T> extends State<_ModernDropdown<T>> {
   double _menuWidth = 0;
 
   void _open(MenuController c) {
-    // misura la larghezza del pulsante
     final ctx = _fieldKey.currentContext;
     if (ctx != null) {
       final box = ctx.findRenderObject() as RenderBox?;
@@ -594,10 +597,14 @@ class _ModernDropdownState<T> extends State<_ModernDropdown<T>> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ NEW: testo visualizzato nel "chip"
+    final String displayText = (widget.value == null)
+        ? '${widget.label}: ${widget.anyLabel}'
+        : '${widget.label}: ${widget.itemLabel(widget.value as T)}';
+
     final field = Container(
       key: _fieldKey,
-      padding:
-          const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFFF7F7F8),
         borderRadius: BorderRadius.circular(10),
@@ -607,13 +614,9 @@ class _ModernDropdownState<T> extends State<_ModernDropdown<T>> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            widget.value == null
-                ? widget.label
-                : widget.itemLabel(widget.value as T),
-            style: TextStyle(
-              color: widget.value == null
-                  ? Colors.black54
-                  : Colors.black87,
+            displayText,
+            style: const TextStyle(
+              color: Colors.black87,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -629,7 +632,6 @@ class _ModernDropdownState<T> extends State<_ModernDropdown<T>> {
         backgroundColor: MaterialStateProperty.all(Colors.white),
         elevation: MaterialStateProperty.all(10),
         surfaceTintColor: MaterialStateProperty.all(Colors.white),
-        // bordo grigio sottile + angoli 4px
         shape: MaterialStateProperty.all(
           RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(4),
@@ -641,27 +643,50 @@ class _ModernDropdownState<T> extends State<_ModernDropdown<T>> {
           Colors.black.withOpacity(.12),
         ),
       ),
+
+      // ✅ NEW: prima voce "Qualsiasi" + lista items
       menuChildren: [
         SizedBox(
           width: _menuWidth > 0 ? _menuWidth : null,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // --- VOCE "QUALSIASI" (nessun filtro) ---
+              SizedBox(
+                width: double.infinity,
+                child: MenuItemButton(
+                  style: ButtonStyle(
+                    padding: MaterialStateProperty.all(
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    ),
+                    overlayColor: MaterialStateProperty.all(const Color(0xFFEEEEEE)),
+                  ),
+                  onPressed: () {
+                    widget.onChanged(null); // ✅ null = nessun filtro
+                    _menu.close();
+                  },
+                  child: Text(widget.anyLabel),
+                ),
+              ),
+
+              // separatore visivo
+              const Divider(height: 1),
+
+              // --- VOCI REALI ---
               for (final it in widget.items)
                 SizedBox(
                   width: double.infinity,
                   child: MenuItemButton(
                     style: ButtonStyle(
                       padding: MaterialStateProperty.all(
-                        const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 10),
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       ),
                       overlayColor: MaterialStateProperty.all(
                         const Color(0xFFEEEEEE),
                       ),
                     ),
                     onPressed: () {
-                      widget.onChanged(it);
+                      widget.onChanged(it); // ✅ applica filtro
                       _menu.close();
                     },
                     child: Text(widget.itemLabel(it)),
@@ -671,17 +696,18 @@ class _ModernDropdownState<T> extends State<_ModernDropdown<T>> {
           ),
         ),
       ],
+
       builder: (context, controller, child) {
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: () =>
-              controller.isOpen ? controller.close() : _open(controller),
+          onTap: () => controller.isOpen ? controller.close() : _open(controller),
           child: field,
         );
       },
     );
   }
 }
+
 
 class _JsonPretty extends StatelessWidget {
   final Object obj;
