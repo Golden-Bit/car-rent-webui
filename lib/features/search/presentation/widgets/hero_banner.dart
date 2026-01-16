@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../../theme/app_theme.dart';
 import '../widgets/location_dropdown.dart';
 import '../pages/advanced_search_page.dart';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 
 class HeroBanner extends StatelessWidget {
   const HeroBanner({super.key});
@@ -139,7 +141,19 @@ class HeroBanner extends StatelessWidget {
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                     ),
-                                    onPressed: () {},
+                                    onPressed: () {
+  debugPrint('[HeroBanner] Promo button clicked');
+
+  final msg = {
+    'type': 'promo-button-pressed',
+    'pressed': true, // <-- booleano
+    'ts': DateTime.now().toIso8601String(),
+  };
+
+  debugPrint('[HeroBanner] ➡ postMessage (typed) msg=$msg targetOrigin=*');
+  html.window.parent?.postMessage(msg, '*');
+  debugPrint('[HeroBanner] ✅ postMessage sent');
+},
                                     child:
                                         const Text('scopri le promozioni'),
                                   ),
@@ -223,7 +237,19 @@ class HeroBanner extends StatelessWidget {
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
-                                  onPressed: () {},
+                                  onPressed: () {
+  debugPrint('[HeroBanner] Promo button clicked');
+
+  final msg = {
+    'type': 'promo-button-pressed',
+    'pressed': true, // <-- booleano
+    'ts': DateTime.now().toIso8601String(),
+  };
+
+  debugPrint('[HeroBanner] ➡ postMessage (typed) msg=$msg targetOrigin=*');
+  html.window.parent?.postMessage(msg, '*');
+  debugPrint('[HeroBanner] ✅ postMessage sent');
+},
                                   child:
                                       const Text('scopri le promozioni'),
                                 ),
@@ -306,7 +332,19 @@ class _RightPanelContent extends StatelessWidget {
               textStyle: const TextStyle(
                   fontWeight: FontWeight.w600, fontSize: 14),
             ),
-            onPressed: () {},
+            onPressed: () {
+  debugPrint('[HeroBanner] Promo button clicked');
+
+  final msg = {
+    'type': 'long-term-button-pressed',
+    'pressed': true, // <-- booleano
+    'ts': DateTime.now().toIso8601String(),
+  };
+
+  debugPrint('[HeroBanner] ➡ postMessage (typed) msg=$msg targetOrigin=*');
+  html.window.parent?.postMessage(msg, '*');
+  debugPrint('[HeroBanner] ✅ postMessage sent');
+},
             child: const Text('Vedi le offerte'),
           ),
         ],
