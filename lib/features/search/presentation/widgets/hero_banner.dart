@@ -1,3 +1,4 @@
+import 'package:car_rent_webui/core/ui/mobile_bottom_padding.dart';
 import 'package:flutter/material.dart';
 import '../../../../theme/app_theme.dart';
 import '../widgets/location_dropdown.dart';
@@ -10,6 +11,7 @@ class HeroBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double extraBottom = mobileBottomPad(context);
     final size = MediaQuery.of(context).size;
 
     // Breakpoint: side-by-side (diagonale) → stacked (orizzontale)
@@ -171,119 +173,133 @@ class HeroBanner extends StatelessWidget {
           ],
         ),
       );
-    } else {
-      // ===== LAYOUT STACKED (pannello destro sotto, separatore orizzontale) =====
-      return SizedBox(
-        width: width,
-        height: height, // ⬅️ qui occupiamo tutta l’altezza schermata
-        child: Column(
-          mainAxisSize: MainAxisSize.max,
-          children: [
-            // Sezione superiore arancione
-            Expanded(
-              flex: 3,
-              child: Container(
-                color: kBrand,
-                width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 720),
-                    child: LayoutBuilder(
-                      builder: (context, c) {
-                        final fw = _computeFieldWidth(c.maxWidth);
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SizedBox(
-                              width: fw,
-                              child: Text(
-                                "Noleggia un'auto",
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .displayMedium,
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            SizedBox(
-                              width: fw,
-                              child: LocationDropdown(
-                                hintText: 'Seleziona località di ritiro',
-                                onSelected: (loc) {
-                                  Navigator.pushNamed(
-                                    context,
-                                    AdvancedSearchPage.routeName,
-                                    arguments:
-                                        AdvancedSearchArgs(pickup: loc),
-                                  );
-                                },
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                            SizedBox(
-                              width: fw,
-                              child: Center(
-                                child: OutlinedButton(
-                                  style: OutlinedButton.styleFrom(
-                                    side: const BorderSide(
-                                        color: Colors.white, width: 1.4),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 22, vertical: 10),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  onPressed: () {
-  debugPrint('[HeroBanner] Promo button clicked');
+} else {
+  // ===== LAYOUT STACKED (mobile/tablet) =====
+  final bool addExtra = extraBottom > 0;
 
-  final msg = {
-    'type': 'promo-button-pressed',
-    'pressed': true, // <-- booleano
-    'ts': DateTime.now().toIso8601String(),
-  };
-
-  debugPrint('[HeroBanner] ➡ postMessage (typed) msg=$msg targetOrigin=*');
-  html.window.parent?.postMessage(msg, '*');
-  debugPrint('[HeroBanner] ✅ postMessage sent');
-},
-                                  child:
-                                      const Text('scopri le promozioni'),
+  final content = SizedBox(
+    width: width,
+    height: height + (addExtra ? extraBottom : 0), // <-- cresce solo su mobile
+    child: Column(
+      mainAxisSize: MainAxisSize.max,
+      children: [
+        // Sezione superiore arancione
+        Expanded(
+          flex: 3,
+          child: Container(
+            color: kBrand,
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: LayoutBuilder(
+                  builder: (context, c) {
+                    final fw = _computeFieldWidth(c.maxWidth);
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: fw,
+                          child: Text(
+                            "Noleggia un'auto",
+                            style: Theme.of(context).textTheme.displayMedium,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: fw,
+                          child: LocationDropdown(
+                            hintText: 'Seleziona località di ritiro',
+                            onSelected: (loc) {
+                              Navigator.pushNamed(
+                                context,
+                                AdvancedSearchPage.routeName,
+                                arguments: AdvancedSearchArgs(pickup: loc),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: fw,
+                          child: Center(
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.white, width: 1.4),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ),
-            ),
+                              onPressed: () {
+                                debugPrint('[HeroBanner] Promo button clicked');
 
-            // Pannello destro *sotto* (bordo orizzontale, niente diagonale)
-            Expanded(
-              flex: 2,
-              child: Container(
-                width: double.infinity,
-                color: kBrandDark,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 28, vertical: 28),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 560),
-                    child: const _RightPanelContent(),
-                  ),
+                                final msg = {
+                                  'type': 'promo-button-pressed',
+                                  'pressed': true,
+                                  'ts': DateTime.now().toIso8601String(),
+                                };
+
+                                debugPrint('[HeroBanner] ➡ postMessage (typed) msg=$msg targetOrigin=*');
+                                html.window.parent?.postMessage(msg, '*');
+                                debugPrint('[HeroBanner] ✅ postMessage sent');
+                              },
+                              child: const Text('scopri le promozioni'),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
-          ],
+          ),
         ),
-      );
-    }
+
+        // Pannello destro sotto (kBrandDark)
+        Expanded(
+          flex: 2,
+          child: Container(
+            width: double.infinity,
+            color: kBrandDark,
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 28),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: const _RightPanelContent(),
+              ),
+            ),
+          ),
+        ),
+
+        // ✅ EXTRA 100px SOLO mobile, con lo STESSO sfondo del pannello sotto
+        if (addExtra)
+          Container(
+            width: double.infinity,
+            height: extraBottom,
+            color: kBrandDark,
+          ),
+      ],
+    ),
+  );
+
+  // ✅ Su mobile vogliamo poter “scrollare” in quei 100px
+  if (addExtra) {
+    return SingleChildScrollView(
+      physics: const ClampingScrollPhysics(),
+      child: content,
+    );
+  }
+
+  // tablet stacked ma NON “mobile”: niente extra e niente scroll
+  return content;
+}
+
   }
 }
 

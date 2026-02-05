@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:car_rent_webui/app.dart';
+import 'package:car_rent_webui/core/ui/mobile_bottom_padding.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -91,6 +92,8 @@ class _ConfirmPageState extends State<ConfirmPage> {
   final _sexCtrl = ValueNotifier<String?>('');
   final _taxCodeCtrl = TextEditingController();
 
+static const bool kWorkInProgress = true; // <-- metti false quando la pagina è pronta
+
   bool _hasPayback = false;
   final _flightCtrl = TextEditingController(text: 'Ad es. BA7885');
 
@@ -110,6 +113,80 @@ void _handleStepTap(int step) {
     if (!nav.canPop()) break; // sicurezza: non uscire dall'app
     nav.pop();
   }
+}
+Widget _buildWorkInProgress(BuildContext context, double extraBottom) {
+  return ScrollConfiguration(
+    behavior: const _NoGlow(),
+    child: SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + extraBottom),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 24),
+              Icon(Icons.construction_rounded, size: 56, color: kBrandDark),
+              const SizedBox(height: 14),
+              const Text(
+                'Work in progress',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Stiamo completando questa sezione.\nCi scusiamo per il disagio.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: kTxtMuted, height: 1.4),
+              ),
+              const SizedBox(height: 18),
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: kCard,
+                  borderRadius: BorderRadius.circular(kRadius),
+                  border: Border.all(color: kStroke),
+                ),
+                child: const Text(
+                  'Puoi tornare ai passaggi precedenti per modificare la ricerca oppure riprovare più tardi.',
+                  style: TextStyle(height: 1.35),
+                ),
+              ),
+
+              const SizedBox(height: 18),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                alignment: WrapAlignment.center,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text('Torna indietro'),
+                  ),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: kBrandDark,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () {
+                      // semplice refresh UI (se vuoi puoi anche ricaricare cfg)
+                      setState(() {});
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Riprova'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 
@@ -166,6 +243,7 @@ void _handleStepTap(int step) {
   @override
   Widget build(BuildContext context) {
     final showTopBar = AppUiFlags.showAppBarOf(context);
+final double extraBottom = mobileBottomPad(context);
 
     return Scaffold(
       appBar: showTopBar ? const TopNavBar() : null,
@@ -194,7 +272,9 @@ StepsHeader(
 
           // Contenuto scrollabile SU TUTTA LA LARGHEZZA
           Expanded(
-            child: LayoutBuilder(
+            child: kWorkInProgress
+          ? _buildWorkInProgress(context, extraBottom)
+          : LayoutBuilder(
               builder: (ctx, cs) {
                 final maxW = cs.maxWidth.clamp(320, 1040.0);
                 return ScrollConfiguration(
@@ -206,7 +286,7 @@ StepsHeader(
                       child: ConstrainedBox(
                         constraints: BoxConstraints(maxWidth: maxW as double),
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+                          padding: EdgeInsets.fromLTRB(24, 16, 24, 32 + extraBottom),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1261,3 +1341,4 @@ class _NoGlow extends ScrollBehavior {
   ) =>
       child;
 }
+

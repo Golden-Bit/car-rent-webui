@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:car_rent_webui/app.dart';
 import 'package:car_rent_webui/car_rent_sdk/sdk.dart';
 import 'package:car_rent_webui/core/deeplink/initial_config.dart';
+import 'package:car_rent_webui/core/ui/mobile_bottom_padding.dart';
 import 'package:car_rent_webui/features/results/models/offer_adapter.dart';
 import 'package:car_rent_webui/features/results/presentation/pages/extras_page.dart';
 import 'package:car_rent_webui/features/results/widgets/steps_header.dart';
@@ -284,6 +285,7 @@ class _ResultsPageState extends State<ResultsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final double extraBottom = mobileBottomPad(context);
     // 1) Loading iniziale: sto chiamando il backend partendo da cfg
     if (_loading && !_hydrated) {
       return _buildLoadingScaffold(
@@ -457,8 +459,7 @@ class _ResultsPageState extends State<ResultsPage> {
                       final filtered = _filtered();
 
                       return GridView.builder(
-                        padding:
-                            const EdgeInsets.fromLTRB(16, 8, 16, 24),
+  padding: EdgeInsets.fromLTRB(16, 8, 16, 24 + extraBottom),
                         gridDelegate:
                             SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: cols,

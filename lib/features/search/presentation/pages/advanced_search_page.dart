@@ -3,6 +3,7 @@ import 'dart:html' as html; // SOLO per Flutter Web
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:js' as js;     // SOLO per Flutter Web (postMessage verso il parent)
 
+import 'package:car_rent_webui/core/ui/mobile_bottom_padding.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:car_rent_webui/app.dart';
@@ -217,6 +218,7 @@ void _postMessageToParent(String url) {
     const double kStackBreakpoint = 1024;
 
     final size = MediaQuery.of(context).size;
+    final double extraBottom = mobileBottomPad(context);
     final primary = Theme.of(context).colorScheme.primary;
 
     const panelWidth = 560.0;
@@ -319,6 +321,7 @@ void _postMessageToParent(String url) {
                 ),
               ],
             ),
+            
           ],
         ),
       );
@@ -389,6 +392,22 @@ void _postMessageToParent(String url) {
                 ),
               ),
             ),
+            // ✅ EXTRA 100px SOLO se width < kMobileBottomPadBreakpoint
+// ✅ Sfondo identico alla sezione mappa (stessa decoration)
+if (extraBottom > 0)
+  Container(
+    width: double.infinity,
+    height: extraBottom,
+    decoration: const BoxDecoration(
+      image: DecorationImage(
+        image: AssetImage(kMapAsset),
+        fit: BoxFit.cover,
+        alignment: Alignment.center,
+        filterQuality: FilterQuality.medium,
+      ),
+    ),
+  ),
+
           ],
         ),
       ),
@@ -485,6 +504,7 @@ class _FormGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    
     // Due rendering: 2 colonne (wide) oppure 1 colonna (stacked)
     if (isWide) {
       return Column(

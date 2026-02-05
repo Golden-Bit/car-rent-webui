@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:car_rent_webui/app.dart';
 import 'package:car_rent_webui/core/deeplink/initial_config.dart';
+import 'package:car_rent_webui/core/ui/mobile_bottom_padding.dart';
 import 'package:car_rent_webui/features/results/models/offer_adapter.dart';
 import 'package:car_rent_webui/features/results/widgets/steps_header.dart';
 import 'package:car_rent_webui/features/results/presentation/pages/confirm_page.dart';
@@ -192,7 +193,7 @@ void initState() {
 @override
 Widget build(BuildContext context) {
   final priceForHeader = _formatHeaderPrice(widget.dataJson, widget.selected);
-
+final double extraBottom = mobileBottomPad(context);
   return Scaffold(
     appBar: AppUiFlags.showAppBarOf(context) ? const TopNavBar() : null,
     body: Column(
@@ -415,6 +416,12 @@ Navigator.pushNamed(
                     ),
                   ),
                 ),
+                // ✅ EXTRA 100px SOLO mobile (sfondo resta quello della pagina)
+if (extraBottom > 0)
+  SliverToBoxAdapter(
+    child: SizedBox(height: extraBottom),
+  ),
+
               ],
             ),
           ),
