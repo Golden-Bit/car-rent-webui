@@ -1,4 +1,5 @@
 import 'package:car_rent_webui/core/widgets/iframe_scroll_bridge.dart';
+import 'package:car_rent_webui/features/results/presentation/pages/booking_confirmed_page.dart';
 import 'package:flutter/material.dart';
 
 import 'theme/app_theme.dart';
@@ -180,17 +181,23 @@ class _MyrentBookingAppState extends State<MyrentBookingApp> {
                 settings: settings,
               );
 
-            case ConfirmPage.routeName:
-              return MaterialPageRoute(
-                builder: (_) => const ConfirmPage(),
-                settings: settings,
-              );
+case ConfirmPage.routeName:
+  return MaterialPageRoute(
+    builder: (_) => const ConfirmPage(),
+    settings: settings,
+  );
 
-            case LongTermOfferPage.routeName:
-              return MaterialPageRoute(
-                builder: (_) => const LongTermOfferPage(),
-                settings: settings,
-              );
+case BookingConfirmedPage.routeName:
+  return MaterialPageRoute(
+    builder: (_) => const BookingConfirmedPage(),
+    settings: settings,
+  );
+
+case LongTermOfferPage.routeName:
+  return MaterialPageRoute(
+    builder: (_) => const LongTermOfferPage(),
+    settings: settings,
+  );
           }
 
           // Se non matcha nulla, lascia che Flutter gestisca (404 navigator)

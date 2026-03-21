@@ -1,12 +1,11 @@
 // ignore_for_file: non_constant_identifier_names
 
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:car_rent_webui/app.dart';
 import 'package:car_rent_webui/car_rent_sdk/sdk.dart';
 import 'package:car_rent_webui/core/ui/mobile_bottom_padding.dart';
-import 'package:car_rent_webui/core/widgets/top_nav_bar.dart';
-import 'package:car_rent_webui/features/results/presentation/pages/booking_confirmed_page.dart';
 import 'package:car_rent_webui/features/search/data/myrent_repository.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +13,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/deeplink/initial_config.dart';
+import '../../../../core/widgets/top_nav_bar.dart';
 import '../../models/offer_adapter.dart';
 import '../../widgets/steps_header.dart';
 
@@ -37,7 +37,6 @@ class ConfirmArgs {
 
 class ConfirmPage extends StatefulWidget {
   static const routeName = '/confirm';
-
   const ConfirmPage({super.key});
 
   @override
@@ -51,9 +50,6 @@ class _ConfirmPageState extends State<ConfirmPage> {
   static const Color kStroke = Color(0xFFE6E6E6);
   static const Color kTxtMuted = Color(0xFF6B6B6B);
   static const Color kCtaGreen = Color(0xFF6FCF97);
-  static const Color kSectionBg = Color(0xFFFAFAFB);
-  static const Color kInfoBg = Color(0xFFFFF7F2);
-  static const Color kInfoBorder = Color(0xFFFFDCCF);
   static const double kRadius = 12;
   static const double kGutter = 16;
 
@@ -65,22 +61,13 @@ class _ConfirmPageState extends State<ConfirmPage> {
   List<InitialExtra> _selectedExtras = const [];
   InitialConfig? _cfg;
 
-  String? _step1Pickup;
-  String? _step1Dropoff;
-  String? _step1Start;
-  String? _step1End;
-  String? _step2Title;
-  String? _step2Subtitle;
-  String? _step2Thumb;
-  String? _step2Price;
+  String? _step1Pickup, _step1Dropoff, _step1Start, _step1End;
+  String? _step2Title, _step2Subtitle, _step2Thumb, _step2Price;
   List<String> _step3Extras = const [];
   String? _step3ExtrasTotal;
   String? _step3InsuranceName;
   String? _step3InsuranceTotal;
-
   bool _hydrated = false;
-  bool _isSubmitting = false;
-  bool _detailsExpanded = false;
 
   PaymentMethod _payMethod = PaymentMethod.payAtDesk;
 
@@ -123,7 +110,15 @@ class _ConfirmPageState extends State<ConfirmPage> {
   bool _accProfiling = false;
   bool _accDataShare = false;
 
+  bool _isSubmitting = false;
+  bool _bookingCompleted = false;
   String? _submitError;
+
+  ReservationComposeResponse? _composeResponse;
+  ReservationFullDetailsResponse? _detailsByInternalId;
+  ReservationFullDetailsResponse? _detailsByCode;
+  String? _detailsByInternalIdError;
+  String? _detailsByCodeError;
 
   @override
   void initState() {
@@ -208,23 +203,24 @@ class _ConfirmPageState extends State<ConfirmPage> {
       backgroundColor: Colors.white,
       body: Column(
         children: [
-          StepsHeader(
-            currentStep: 4,
-            accent: kBrandDark,
-            step1Pickup: _step1Pickup,
-            step1Dropoff: _step1Dropoff,
-            step1Start: _step1Start,
-            step1End: _step1End,
-            step2Title: _step2Title,
-            step2Subtitle: _step2Subtitle,
-            step2Thumb: _step2Thumb,
-            step2Price: _step2Price,
-            step3Extras: _step3Extras,
-            step3ExtrasTotal: _step3ExtrasTotal,
-            step3InsuranceName: _step3InsuranceName,
-            step3InsuranceTotal: _step3InsuranceTotal,
-            onTapStep: _handleStepTap,
-          ),
+          if (!_bookingCompleted)
+            StepsHeader(
+              currentStep: 4,
+              accent: kBrandDark,
+              step1Pickup: _step1Pickup,
+              step1Dropoff: _step1Dropoff,
+              step1Start: _step1Start,
+              step1End: _step1End,
+              step2Title: _step2Title,
+              step2Subtitle: _step2Subtitle,
+              step2Thumb: _step2Thumb,
+              step2Price: _step2Price,
+              step3Extras: _step3Extras,
+              step3ExtrasTotal: _step3ExtrasTotal,
+              step3InsuranceName: _step3InsuranceName,
+              step3InsuranceTotal: _step3InsuranceTotal,
+              onTapStep: _handleStepTap,
+            ),
           Expanded(
             child: LayoutBuilder(
               builder: (ctx, cs) {
@@ -237,88 +233,104 @@ class _ConfirmPageState extends State<ConfirmPage> {
                     child: Center(
                       child: ConstrainedBox(
                         constraints: BoxConstraints(maxWidth: maxW as double),
-                        child: Stack(
-                          children: [
-                            IgnorePointer(
-                              ignoring: _isSubmitting,
-                              child: Opacity(
-                                opacity: _isSubmitting ? 0.55 : 1,
-                                child: Form(
-                                  key: _formKey,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      _buildPageIntro(),
-                                      const SizedBox(height: 20),
-                                      _sectionTitle('Dati cliente'),
-                                      const SizedBox(height: 12),
-                                      _buildCustomerSection(),
-                                      const SizedBox(height: 24),
-                                      _sectionTitle('Documento e patente del cliente'),
-                                      const SizedBox(height: 12),
-                                      _buildCustomerDocumentSection(),
-                                      const SizedBox(height: 24),
-                                      _sectionTitle('Metodo di pagamento'),
-                                      const SizedBox(height: 12),
-                                      _buildPaymentSection(),
-                                      const SizedBox(height: 24),
-                                      _sectionTitle('Guidatori'),
-                                      const SizedBox(height: 12),
-                                      _buildDriversSection(),
-                                      const SizedBox(height: 24),
-                                      _buildBookingDetailsAccordion(),
-                                      const SizedBox(height: 24),
-                                      _sectionTitle('Consensi'),
-                                      const SizedBox(height: 12),
-                                      _buildConsents(),
-                                      if (_submitError != null) ...[
-                                        const SizedBox(height: 16),
-                                        _buildErrorBox(_submitError!),
-                                      ],
-                                      const SizedBox(height: 18),
-                                      Wrap(
-                                        spacing: 12,
-                                        runSpacing: 12,
-                                        children: [
-                                          SizedBox(
-                                            height: 48,
-                                            child: FilledButton.icon(
-                                              style: FilledButton.styleFrom(
-                                                backgroundColor: kCtaGreen,
-                                                foregroundColor: Colors.white,
-                                                padding: const EdgeInsets.symmetric(
-                                                  horizontal: 20,
-                                                ),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius: BorderRadius.circular(
-                                                    kRadius,
+                        child: _bookingCompleted
+                            ? _buildConfirmationView()
+                            : Stack(
+                                children: [
+                                  IgnorePointer(
+                                    ignoring: _isSubmitting,
+                                    child: Opacity(
+                                      opacity: _isSubmitting ? 0.55 : 1,
+                                      child: Form(
+                                        key: _formKey,
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            _buildAutomaticBookingCard(),
+                                            const SizedBox(height: 20),
+                                            _buildPriceBreakdownCard(),
+                                            const SizedBox(height: 24),
+                                            _sectionTitle('Dati cliente'),
+                                            const SizedBox(height: 12),
+                                            _buildCustomerSection(),
+                                            const SizedBox(height: 24),
+                                            _sectionTitle(
+                                                'Documento e patente del cliente'),
+                                            const SizedBox(height: 12),
+                                            _buildCustomerDocumentSection(),
+                                            const SizedBox(height: 24),
+                                            _sectionTitle('Metodo di pagamento'),
+                                            const SizedBox(height: 12),
+                                            _buildPaymentSection(),
+                                            const SizedBox(height: 24),
+                                            _sectionTitle('Guidatori'),
+                                            const SizedBox(height: 12),
+                                            _buildDriversSection(),
+                                            const SizedBox(height: 24),
+                                            _sectionTitle('Consensi'),
+                                            const SizedBox(height: 12),
+                                            _buildConsents(),
+                                            if (_submitError != null) ...[
+                                              const SizedBox(height: 16),
+                                              _buildErrorBox(_submitError!),
+                                            ],
+                                            const SizedBox(height: 18),
+                                            Wrap(
+                                              spacing: 12,
+                                              runSpacing: 12,
+                                              children: [
+                                                SizedBox(
+                                                  height: 48,
+                                                  child: FilledButton.icon(
+                                                    style:
+                                                        FilledButton.styleFrom(
+                                                      backgroundColor: kCtaGreen,
+                                                      foregroundColor:
+                                                          Colors.white,
+                                                      padding: const EdgeInsets
+                                                          .symmetric(
+                                                        horizontal: 20,
+                                                      ),
+                                                      shape:
+                                                          RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(
+                                                          kRadius,
+                                                        ),
+                                                      ),
+                                                      textStyle:
+                                                          const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
+                                                    ),
+                                                    onPressed: _onSubmit,
+                                                    icon: const Icon(
+                                                        Icons.check_circle),
+                                                    label: const Text('Prenota'),
                                                   ),
                                                 ),
-                                                textStyle: const TextStyle(
-                                                  fontWeight: FontWeight.w700,
+                                                OutlinedButton.icon(
+                                                  onPressed: () =>
+                                                      Navigator.of(context)
+                                                          .maybePop(),
+                                                  icon:
+                                                      const Icon(Icons.arrow_back),
+                                                  label:
+                                                      const Text('Torna indietro'),
                                                 ),
-                                              ),
-                                              onPressed: _onSubmit,
-                                              icon: const Icon(Icons.check_circle),
-                                              label: const Text('Prenota'),
+                                              ],
                                             ),
-                                          ),
-                                          OutlinedButton.icon(
-                                            onPressed: () =>
-                                                Navigator.of(context).maybePop(),
-                                            icon: const Icon(Icons.arrow_back),
-                                            label: const Text('Torna indietro'),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
-                                    ],
+                                    ),
                                   ),
-                                ),
+                                  if (_isSubmitting) _buildSubmittingOverlay(),
+                                ],
                               ),
-                            ),
-                            if (_isSubmitting) _buildSubmittingOverlay(),
-                          ],
-                        ),
                       ),
                     ),
                   ),
@@ -327,155 +339,6 @@ class _ConfirmPageState extends State<ConfirmPage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildPageIntro() {
-    final summaryPrice = _priceBreakdown.grandTotal > 0
-        ? _fmtMoney(_priceBreakdown.grandTotal, _priceBreakdown.currencySymbol)
-        : (_step2Price ?? '-');
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: kInfoBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: kInfoBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: const [
-              Icon(Icons.verified_user_outlined, color: kBrandDark),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Conferma dati prenotazione',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'Compila i dati richiesti, verifica il riepilogo nel pannello “Dettagli prenotazione” e completa l’invio.',
-            style: const TextStyle(
-              color: kTxtMuted,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _topChip(
-                icon: Icons.location_on_outlined,
-                label: 'Tratta',
-                value:
-                    '${_step1Pickup ?? '-'} → ${_step1Dropoff ?? '-'}',
-              ),
-              _topChip(
-                icon: Icons.directions_car_outlined,
-                label: 'Veicolo',
-                value: _selectedVehicleCode ?? '-',
-              ),
-              _topChip(
-                icon: Icons.euro_outlined,
-                label: 'Totale stimato',
-                value: summaryPrice,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _topChip({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: kStroke),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: kBrandDark),
-          const SizedBox(width: 8),
-          Text(
-            '$label: ',
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-          Text(value),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBookingDetailsAccordion() {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: kSectionBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: kStroke),
-      ),
-      child: Theme(
-        data: Theme.of(context).copyWith(
-          dividerColor: Colors.transparent,
-          splashColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-        ),
-        child: ExpansionTile(
-          initiallyExpanded: _detailsExpanded,
-          onExpansionChanged: (v) => setState(() => _detailsExpanded = v),
-          tilePadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
-          childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-          leading: Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: kBrand.withOpacity(.10),
-              shape: BoxShape.circle,
-              border: Border.all(color: kStroke),
-            ),
-            child: const Icon(Icons.description_outlined, color: kBrandDark),
-          ),
-          title: const Text(
-            'Dettagli prenotazione',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 18,
-            ),
-          ),
-          subtitle: Text(
-            _detailsExpanded
-                ? 'Riepilogo completo di veicolo, date, optional e costi.'
-                : 'Espandi per verificare riepilogo tecnico ed economico prima dell’invio.',
-            style: const TextStyle(
-              color: kTxtMuted,
-              height: 1.35,
-            ),
-          ),
-          children: [
-            _buildAutomaticBookingCard(),
-            const SizedBox(height: 16),
-            _buildPriceBreakdownCard(),
-          ],
-        ),
       ),
     );
   }
@@ -514,7 +377,9 @@ class _ConfirmPageState extends State<ConfirmPage> {
             'Optional selezionati',
             _selectedExtras.isEmpty
                 ? 'Nessuno'
-                : _selectedExtras.map((e) => '${e.code} x${e.qty}').join(', '),
+                : _selectedExtras
+                    .map((e) => '${e.code} x${e.qty}')
+                    .join(', '),
           ),
           if (_step3InsuranceName != null)
             _summaryRow('Assicurazione', _step3InsuranceName!),
@@ -606,9 +471,9 @@ class _ConfirmPageState extends State<ConfirmPage> {
             valueColor: kBrandDark,
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Il riepilogo economico è una vista di supporto prima dell’invio. La prenotazione usa in automatico i dati derivati dal flusso precedente e il vehicleRequest configurato nella pagina.',
-            style: TextStyle(color: kTxtMuted, height: 1.35),
+          Text(
+            'Il prezzo sopra mostra separatamente imponibile, IVA e componenti selezionate. Il payload di prenotazione usa in automatico i dati derivati dal flusso precedente.',
+            style: const TextStyle(color: kTxtMuted, height: 1.35),
           ),
         ],
       ),
@@ -618,80 +483,38 @@ class _ConfirmPageState extends State<ConfirmPage> {
   Widget _buildCustomerSection() {
     return _grid(
       children: [
-        _labeledField(
-          'NOME *',
-          controller: _customerFirstName,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'COGNOME *',
-          controller: _customerLastName,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'E-MAIL *',
-          controller: _customerEmail,
-          keyboardType: TextInputType.emailAddress,
-          validator: _emailValidator,
-        ),
-        _labeledField(
-          'CONFERMA E-MAIL *',
-          controller: _customerEmailConfirm,
-          keyboardType: TextInputType.emailAddress,
-          validator: _confirmEmailValidator,
-        ),
-        _labeledField(
-          'TELEFONO *',
-          controller: _customerMobile,
-          keyboardType: TextInputType.phone,
-          validator: _requiredValidator,
-        ),
-        _selectLabeled(
-          'NAZIONE *',
-          _customerCountry,
-          items: const ['IT', 'FR', 'DE', 'ES', 'GB'],
-        ),
-        _labeledField(
-          'CITTÀ *',
-          controller: _customerCity,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'CAP *',
-          controller: _customerZip,
-          keyboardType: TextInputType.number,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'INDIRIZZO *',
-          controller: _customerStreet,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'CIVICO *',
-          controller: _customerNum,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'CODICE FISCALE *',
-          controller: _customerTaxCode,
-          validator: _requiredValidator,
-        ),
-        _dateLabeled(
-          'DATA DI NASCITA *',
-          controller: _customerBirthDate,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'LUOGO DI NASCITA *',
-          controller: _customerBirthPlace,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'PROVINCIA DI NASCITA *',
-          controller: _customerBirthProvince,
-          validator: _requiredValidator,
-        ),
+        _labeledField('NOME *', controller: _customerFirstName,
+            validator: _requiredValidator),
+        _labeledField('COGNOME *', controller: _customerLastName,
+            validator: _requiredValidator),
+        _labeledField('E-MAIL *', controller: _customerEmail,
+            keyboardType: TextInputType.emailAddress,
+            validator: _emailValidator),
+        _labeledField('CONFERMA E-MAIL *', controller: _customerEmailConfirm,
+            keyboardType: TextInputType.emailAddress,
+            validator: _confirmEmailValidator),
+        _labeledField('TELEFONO *', controller: _customerMobile,
+            keyboardType: TextInputType.phone,
+            validator: _requiredValidator),
+        _selectLabeled('NAZIONE *', _customerCountry,
+            items: const ['IT', 'FR', 'DE', 'ES', 'GB']),
+        _labeledField('CITTÀ *', controller: _customerCity,
+            validator: _requiredValidator),
+        _labeledField('CAP *', controller: _customerZip,
+            keyboardType: TextInputType.number,
+            validator: _requiredValidator),
+        _labeledField('INDIRIZZO *', controller: _customerStreet,
+            validator: _requiredValidator),
+        _labeledField('CIVICO *', controller: _customerNum,
+            validator: _requiredValidator),
+        _labeledField('CODICE FISCALE *', controller: _customerTaxCode,
+            validator: _requiredValidator),
+        _dateLabeled('DATA DI NASCITA *', controller: _customerBirthDate,
+            validator: _requiredValidator),
+        _labeledField('LUOGO DI NASCITA *', controller: _customerBirthPlace,
+            validator: _requiredValidator),
+        _labeledField('PROVINCIA DI NASCITA *', controller: _customerBirthProvince,
+            validator: _requiredValidator),
       ],
     );
   }
@@ -699,36 +522,18 @@ class _ConfirmPageState extends State<ConfirmPage> {
   Widget _buildCustomerDocumentSection() {
     return _grid(
       children: [
-        _labeledField(
-          'DOCUMENTO *',
-          controller: _customerDocument,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'NUMERO DOCUMENTO *',
-          controller: _customerDocumentNumber,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'TIPO PATENTE *',
-          controller: _customerLicenceType,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'RILASCIATA DA *',
-          controller: _customerIssueBy,
-          validator: _requiredValidator,
-        ),
-        _dateLabeled(
-          'DATA RILASCIO *',
-          controller: _customerReleaseDate,
-          validator: _requiredValidator,
-        ),
-        _dateLabeled(
-          'DATA SCADENZA *',
-          controller: _customerExpiryDate,
-          validator: _requiredValidator,
-        ),
+        _labeledField('DOCUMENTO *', controller: _customerDocument,
+            validator: _requiredValidator),
+        _labeledField('NUMERO DOCUMENTO *', controller: _customerDocumentNumber,
+            validator: _requiredValidator),
+        _labeledField('TIPO PATENTE *', controller: _customerLicenceType,
+            validator: _requiredValidator),
+        _labeledField('RILASCIATA DA *', controller: _customerIssueBy,
+            validator: _requiredValidator),
+        _dateLabeled('DATA RILASCIO *', controller: _customerReleaseDate,
+            validator: _requiredValidator),
+        _dateLabeled('DATA SCADENZA *', controller: _customerExpiryDate,
+            validator: _requiredValidator),
       ],
     );
   }
@@ -744,7 +549,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
           spacing: 16,
           runSpacing: 16,
           children: [
-            /*_paymentCard(
+            _paymentCard(
               method: PaymentMethod.payNow,
               icon: Icons.credit_card,
               title: 'PAGA ORA',
@@ -753,27 +558,27 @@ class _ConfirmPageState extends State<ConfirmPage> {
                 style: TextStyle(fontSize: 11, color: kTxtMuted),
               ),
               price: priceNow,
-            ),*/
+            ),
             _paymentCard(
               method: PaymentMethod.payAtDesk,
               icon: Icons.storefront_outlined,
               title: 'PAGA AL RITIRO',
               subtitle: const Text(
-                'La prenotazione viene comunque creata con la logica vehicleRequest attuale impostata nel codice.',
+                'La prenotazione viene creata senza vehicleRequest.',
                 style: TextStyle(fontSize: 11, color: kTxtMuted),
               ),
               price: priceNow,
             ),
-            /*_paymentCard(
+            _paymentCard(
               method: PaymentMethod.scalapay,
               icon: Icons.wallet_outlined,
               title: 'SCALAPAY',
               subtitle: const Text(
-                'Mantiene la selezione UI ma il payload usa la logica vehicleRequest attuale.',
+                'Mantiene la prenotazione con payload di pagamento dedicato.',
                 style: TextStyle(fontSize: 11, color: kTxtMuted),
               ),
               price: priceNow,
-            ),*/
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -872,51 +677,27 @@ class _ConfirmPageState extends State<ConfirmPage> {
           const SizedBox(height: 8),
           _grid(
             children: [
-              _labeledField(
-                'NOME *',
-                controller: bundle.firstName,
-                validator: _requiredValidator,
-              ),
-              _labeledField(
-                'COGNOME *',
-                controller: bundle.lastName,
-                validator: _requiredValidator,
-              ),
-              _labeledField(
-                'E-MAIL',
-                controller: bundle.email,
-                keyboardType: TextInputType.emailAddress,
-              ),
-              _labeledField(
-                'TELEFONO',
-                controller: bundle.mobile,
-                keyboardType: TextInputType.phone,
-              ),
-              _selectLabeled(
-                'NAZIONE',
-                bundle.country,
-                items: const ['IT', 'FR', 'DE', 'ES', 'GB'],
-              ),
+              _labeledField('NOME *', controller: bundle.firstName,
+                  validator: _requiredValidator),
+              _labeledField('COGNOME *', controller: bundle.lastName,
+                  validator: _requiredValidator),
+              _labeledField('E-MAIL', controller: bundle.email,
+                  keyboardType: TextInputType.emailAddress),
+              _labeledField('TELEFONO', controller: bundle.mobile,
+                  keyboardType: TextInputType.phone),
+              _selectLabeled('NAZIONE', bundle.country,
+                  items: const ['IT', 'FR', 'DE', 'ES', 'GB']),
               _labeledField('CITTÀ', controller: bundle.city),
-              _labeledField(
-                'CAP',
-                controller: bundle.zip,
-                keyboardType: TextInputType.number,
-              ),
+              _labeledField('CAP', controller: bundle.zip,
+                  keyboardType: TextInputType.number),
               _labeledField('INDIRIZZO', controller: bundle.street),
               _labeledField('CIVICO', controller: bundle.num),
               _labeledField('CODICE FISCALE', controller: bundle.taxCode),
               _dateLabeled('DATA DI NASCITA', controller: bundle.birthDate),
               _labeledField('LUOGO DI NASCITA', controller: bundle.birthPlace),
-              _labeledField(
-                'PROVINCIA DI NASCITA',
-                controller: bundle.birthProvince,
-              ),
+              _labeledField('PROVINCIA DI NASCITA', controller: bundle.birthProvince),
               _labeledField('DOCUMENTO', controller: bundle.document),
-              _labeledField(
-                'NUMERO DOCUMENTO',
-                controller: bundle.documentNumber,
-              ),
+              _labeledField('NUMERO DOCUMENTO', controller: bundle.documentNumber),
               _labeledField('TIPO PATENTE', controller: bundle.licenceType),
               _labeledField('RILASCIATA DA', controller: bundle.issueBy),
               _dateLabeled('DATA RILASCIO', controller: bundle.releaseDate),
@@ -994,10 +775,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
                   SizedBox(height: 16),
                   Text(
                     'Stiamo creando la prenotazione…',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                     textAlign: TextAlign.center,
                   ),
                   SizedBox(height: 10),
@@ -1017,6 +795,139 @@ class _ConfirmPageState extends State<ConfirmPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildConfirmationView() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0FFF7),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFD7F2E1)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.check_circle, color: Color(0xFF2E9E5B), size: 32),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Prenotazione completata',
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _summaryRow('Booking ID', _composeResponse?.booking_id ?? '-'),
+              _summaryRow('Reservation internal ID',
+                  _composeResponse?.reservation_id_internal ?? '-'),
+              _summaryRow('Customer ID', _composeResponse?.customer_id ?? '-'),
+              _summaryRow('Channel', _composeResponse?.channel ?? '-'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: kBrandDark,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+                    icon: const Icon(Icons.home),
+                    label: const Text('Torna alla home'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _resetForNewBooking,
+                    icon: const Icon(Icons.restart_alt),
+                    label: const Text('Nuova prenotazione'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        _buildJsonPanel(
+          title: 'Output compose',
+          jsonMap: _composeResponse?.toJson(),
+        ),
+        const SizedBox(height: 16),
+        _buildJsonPanel(
+          title: 'Dettaglio reservation da internal id',
+          jsonMap: _detailsByInternalId?.toJson(),
+          error: _detailsByInternalIdError,
+        ),
+        const SizedBox(height: 16),
+        _buildJsonPanel(
+          title: 'Dettaglio reservation da code + email + date',
+          jsonMap: _detailsByCode?.toJson(),
+          error: _detailsByCodeError,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildJsonPanel({
+    required String title,
+    Map<String, dynamic>? jsonMap,
+    String? error,
+  }) {
+    final pretty = jsonMap == null
+        ? null
+        : const JsonEncoder.withIndent('  ').convert(jsonMap);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(kRadius),
+        border: Border.all(color: kStroke),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+          ),
+          const SizedBox(height: 10),
+          if (error != null)
+            _buildErrorBox(error)
+          else if (pretty != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8F8F8),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: kStroke),
+              ),
+              child: SelectableText(
+                pretty,
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12.5,
+                  height: 1.4,
+                ),
+              ),
+            )
+          else
+            const Text(
+              'Nessun dato disponibile.',
+              style: TextStyle(color: kTxtMuted),
+            ),
+        ],
       ),
     );
   }
@@ -1056,19 +967,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(kRadius),
-            border: Border.all(
-              color: selected ? kBrandDark : kStroke,
-              width: selected ? 1.5 : 1,
-            ),
-            boxShadow: selected
-                ? const [
-                    BoxShadow(
-                      blurRadius: 10,
-                      color: Color(0x11000000),
-                      offset: Offset(0, 4),
-                    ),
-                  ]
-                : const [],
+            border: Border.all(color: selected ? kBrandDark : kStroke, width: selected ? 1.5 : 1),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1093,10 +992,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
               const SizedBox(height: 12),
               Text(
                 price,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 20,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
               ),
             ],
           ),
@@ -1106,8 +1002,8 @@ class _ConfirmPageState extends State<ConfirmPage> {
   }
 
   Widget _cardForm() {
-    final visible = _payMethod == PaymentMethod.payNow ||
-        _payMethod == PaymentMethod.scalapay;
+    final visible =
+        _payMethod == PaymentMethod.payNow || _payMethod == PaymentMethod.scalapay;
     if (!visible) return const SizedBox.shrink();
 
     return Container(
@@ -1125,10 +1021,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
             children: [
               _circleIcon(Icons.credit_card, bg: kBrand.withOpacity(.10)),
               const SizedBox(width: 8),
-              const Text(
-                'Dati carta',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
+              const Text('Dati carta', style: TextStyle(fontWeight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 12),
@@ -1193,8 +1086,9 @@ class _ConfirmPageState extends State<ConfirmPage> {
         while (i < children.length) {
           if (isWide) {
             final left = children[i];
-            final right =
-                (i + 1 < children.length && !left.span2) ? children[i + 1] : null;
+            final right = (i + 1 < children.length && !left.span2)
+                ? children[i + 1]
+                : null;
 
             rows.add(
               Row(
@@ -1305,9 +1199,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
             onTap: () async {
               final now = DateTime.now();
               final parsed = _parseUiDate(controller.text);
-              final initial =
-                  parsed ?? DateTime(now.year - 30, now.month, now.day);
-
+              final initial = parsed ?? DateTime(now.year - 30, now.month, now.day);
               final pick = await showDatePicker(
                 context: context,
                 initialDate: initial,
@@ -1323,7 +1215,6 @@ class _ConfirmPageState extends State<ConfirmPage> {
                   );
                 },
               );
-
               if (pick != null) {
                 controller.text = _formatUiDate(pick);
               }
@@ -1535,24 +1426,17 @@ class _ConfirmPageState extends State<ConfirmPage> {
 
     final valid = _formKey.currentState?.validate() ?? false;
     if (!valid) {
-      setState(() {
-        _submitError = 'Compila correttamente tutti i campi obbligatori.';
-      });
+      setState(() => _submitError = 'Compila correttamente tutti i campi obbligatori.');
       return;
     }
 
     if (!_accPrivacy || !_accTos) {
-      setState(() {
-        _submitError = 'Accetta privacy e termini per continuare.';
-      });
+      setState(() => _submitError = 'Accetta privacy e termini per continuare.');
       return;
     }
 
     if (_selectedVehicleCode == null || _dataJson == null) {
-      setState(() {
-        _submitError =
-            'Dati di prenotazione incompleti: vehicle o quotation non disponibili.';
-      });
+      setState(() => _submitError = 'Dati di prenotazione incompleti: vehicle o quotation non disponibili.');
       return;
     }
 
@@ -1561,6 +1445,8 @@ class _ConfirmPageState extends State<ConfirmPage> {
     setState(() {
       _isSubmitting = true;
       _submitError = null;
+      _detailsByCodeError = null;
+      _detailsByInternalIdError = null;
     });
 
     final startedAt = DateTime.now();
@@ -1585,13 +1471,13 @@ class _ConfirmPageState extends State<ConfirmPage> {
 
       ReservationFullDetailsResponse? internal;
       ReservationFullDetailsResponse? byCode;
+      String? internalError;
+      String? byCodeError;
 
       try {
-        internal = await _repo.getReservationByInternalId(
-          compose.reservation_id_internal,
-        );
-      } catch (_) {
-        internal = null;
+        internal = await _repo.getReservationByInternalId(compose.reservation_id_internal);
+      } catch (e) {
+        internalError = e.toString();
       }
 
       final reservationCode = compose.booking_id;
@@ -1607,50 +1493,52 @@ class _ConfirmPageState extends State<ConfirmPage> {
             customerEmail: customerEmail,
             reservationDate: reservationDate,
           );
-        } catch (_) {
-          byCode = null;
+        } catch (e) {
+          byCodeError = e.toString();
         }
       }
 
       final elapsed = DateTime.now().difference(startedAt);
-      final remain = const Duration(seconds: 2) - elapsed;
+      final remain = const Duration(seconds: 3) - elapsed;
       if (remain.inMilliseconds > 0) {
         await Future.delayed(remain);
       }
 
       if (!mounted) return;
-
       setState(() {
+        _composeResponse = compose;
+        _detailsByInternalId = internal;
+        _detailsByCode = byCode;
+        _detailsByInternalIdError = internalError;
+        _detailsByCodeError = byCodeError;
         _isSubmitting = false;
+        _bookingCompleted = true;
       });
-
-      Navigator.of(context).pushReplacementNamed(
-        BookingConfirmedPage.routeName,
-        arguments: BookingConfirmedArgs(
-          composeResponse: compose,
-          detailsByInternalId: internal,
-          detailsByCode: byCode,
-          dataJson: _dataJson,
-          selected: _selected,
-          selectedExtras: _selectedExtras,
-          insuranceName: _step3InsuranceName,
-          insuranceTotalFormatted: _step3InsuranceTotal,
-        ),
-      );
     } catch (e) {
       final elapsed = DateTime.now().difference(startedAt);
-      final remain = const Duration(seconds: 2) - elapsed;
+      final remain = const Duration(seconds: 3) - elapsed;
       if (remain.inMilliseconds > 0) {
         await Future.delayed(remain);
       }
-
       if (!mounted) return;
-
       setState(() {
         _isSubmitting = false;
         _submitError = e.toString();
       });
     }
+  }
+
+  void _resetForNewBooking() {
+    setState(() {
+      _bookingCompleted = false;
+      _isSubmitting = false;
+      _submitError = null;
+      _composeResponse = null;
+      _detailsByInternalId = null;
+      _detailsByCode = null;
+      _detailsByInternalIdError = null;
+      _detailsByCodeError = null;
+    });
   }
 
   Map<String, dynamic> _buildComposePayload() {
@@ -1662,14 +1550,12 @@ class _ConfirmPageState extends State<ConfirmPage> {
       'vehicleCode': _selectedVehicleCode,
       'channel': _resolvedChannel,
       'optionals': _selectedExtras
-          .map(
-            (e) => {
-              'EquipType': e.code,
-              'Quantity': e.qty,
-              'Selected': true,
-              'Prepaid': false,
-            },
-          )
+          .map((e) => {
+                'EquipType': e.code,
+                'Quantity': e.qty,
+                'Selected': true,
+                'Prepaid': false,
+              })
           .toList(),
       'youngDriverFee': null,
       'seniorDriverFee': null,
@@ -1728,87 +1614,98 @@ class _ConfirmPageState extends State<ConfirmPage> {
     };
   }
 
-  double _extractPaymentAmountForVehicleRequest() {
-    double? readFromMap(Map<String, dynamic>? m) {
-      if (m == null) return null;
+double _extractPaymentAmountForVehicleRequest() {
+  double? readFromMap(Map<String, dynamic>? m) {
+    if (m == null) return null;
 
-      for (final key in ['RateTotalAmount', 'EstimatedTotalAmount', 'TotalAmount']) {
-        final v = m[key];
-        if (v is num) return v.toDouble();
-        if (v is String) {
-          final parsed = double.tryParse(v.replaceAll(',', '.'));
-          if (parsed != null) return parsed;
-        }
+    for (final key in ['RateTotalAmount', 'EstimatedTotalAmount', 'TotalAmount']) {
+      final v = m[key];
+      if (v is num) return v.toDouble();
+      if (v is String) {
+        final parsed = double.tryParse(v.replaceAll(',', '.'));
+        if (parsed != null) return parsed;
       }
-      return null;
     }
+    return null;
+  }
 
-    final raw = _selected?.raw;
-    if (raw != null) {
-      final tcRaw = raw['TotalCharge'] ?? raw['total_charge'];
+  // 1) prima prova dal raw dell'offerta selezionata
+  final raw = _selected?.raw;
+  if (raw != null) {
+    final tcRaw = raw['TotalCharge'] ?? raw['total_charge'];
+    if (tcRaw is Map) {
+      final amount = readFromMap(Map<String, dynamic>.from(tcRaw));
+      if (amount != null && amount > 0) return amount;
+    }
+  }
+
+  // 2) fallback: cerca il veicolo selezionato dentro dataJson['Vehicles']
+  final vehicles = _dataJson?['Vehicles'];
+  if (vehicles is List) {
+    final wantedIds = <String>{
+      if (_selected?.id != null) _selected!.id!.toString(),
+      if (_selected?.vehicleId != null) _selected!.vehicleId!.toString(),
+      if (_selected?.code != null) _selected!.code!.toString(),
+    };
+
+    for (final item in vehicles) {
+      if (item is! Map) continue;
+      final vm = Map<String, dynamic>.from(item as Map);
+
+      final vehicle = vm['Vehicle'];
+      final vehicleMap = vehicle is Map ? Map<String, dynamic>.from(vehicle) : const <String, dynamic>{};
+
+      final candidateId = (
+        vehicleMap['id'] ??
+        vehicleMap['Id'] ??
+        vehicleMap['Code'] ??
+        vehicleMap['code'] ??
+        vm['id'] ??
+        vm['Id'] ??
+        vm['Code'] ??
+        vm['code']
+      )?.toString();
+
+      if (candidateId == null || !wantedIds.contains(candidateId)) continue;
+
+      final tcRaw = vm['TotalCharge'] ?? vm['total_charge'];
       if (tcRaw is Map) {
         final amount = readFromMap(Map<String, dynamic>.from(tcRaw));
         if (amount != null && amount > 0) return amount;
       }
     }
-
-    final vehicles = _dataJson?['Vehicles'];
-    if (vehicles is List) {
-      final wantedIds = <String>{
-        if (_selected?.id != null) _selected!.id!.toString(),
-        if (_selected?.vehicleId != null) _selected!.vehicleId!.toString(),
-        if (_selected?.code != null) _selected!.code!.toString(),
-      };
-
-      for (final item in vehicles) {
-        if (item is! Map) continue;
-        final vm = Map<String, dynamic>.from(item);
-
-        final vehicle = vm['Vehicle'];
-        final vehicleMap = vehicle is Map
-            ? Map<String, dynamic>.from(vehicle)
-            : const <String, dynamic>{};
-
-        final candidateId = (
-          vehicleMap['id'] ??
-          vehicleMap['Id'] ??
-          vehicleMap['Code'] ??
-          vehicleMap['code'] ??
-          vm['id'] ??
-          vm['Id'] ??
-          vm['Code'] ??
-          vm['code']
-        )?.toString();
-
-        if (candidateId == null || !wantedIds.contains(candidateId)) continue;
-
-        final tcRaw = vm['TotalCharge'] ?? vm['total_charge'];
-        if (tcRaw is Map) {
-          final amount = readFromMap(Map<String, dynamic>.from(tcRaw));
-          if (amount != null && amount > 0) return amount;
-        }
-      }
-    }
-
-    if (_selected?.total != null && _selected!.total! > 0) {
-      return _selected!.total!;
-    }
-
-    return 0;
   }
 
+  // 3) ultimo fallback: usa il totale dell'offerta, se presente
+  if (_selected?.total != null && _selected!.total! > 0) {
+    return _selected!.total!;
+  }
+
+  return 0;
+}
   Map<String, dynamic>? _buildVehicleRequest() {
-    final amount = _extractPaymentAmountForVehicleRequest();
-    if (amount <= 0) return null;
+    //if (_payMethod == PaymentMethod.payAtDesk) return null;
 
-    return {
-      'PaymentType': '---3BONIFICO---3',
+    /*return {
+      'paymentType': _payMethod == PaymentMethod.scalapay
+          ? 'SCALAPAY'
+          : 'CREDIT_CARD',
       'type': 'Payment',
-      'PaymentAmount': amount,
-      'PaymentTransactionTypeCode': 'charge',
-      'VoucherNumber': 'TESTDOGMA',
+      'paymentAmount': _priceBreakdown.rentalExVat,
+      'paymentTransactionTypeCode': 'charge',
+      'voucherNumber': _buildVoucherNumber(),
     };
-  }
+  }*/
+    final amount = _extractPaymentAmountForVehicleRequest();
+  if (amount <= 0) return null;
+    return {
+    'PaymentType': '---3BONIFICO---3',
+    'type': 'Payment',
+    'PaymentAmount': amount,
+    'PaymentTransactionTypeCode': 'charge',
+    'VoucherNumber': 'TESTDOGMA',
+  };
+}
 
   void _copyCustomerIntoDriver(_DriverFormBundle driver) {
     driver.firstName.text = _customerFirstName.text;
@@ -1908,14 +1805,13 @@ class _ConfirmPageState extends State<ConfirmPage> {
       final title = (equip['Description'] ?? selectedExtra.code).toString();
       final amount = (charge['Amount'] as num?)?.toDouble() ?? 0;
       final isDaily = selectedExtra.perDay;
-      final lineTotal = amount * max(1, selectedExtra.qty) * (isDaily ? days : 1);
+      final lineTotal = amount * max(1, selectedExtra.qty) * (isDaily ? 1 : 1);
       labels.add(selectedExtra.qty > 1 ? '$title x${selectedExtra.qty}' : title);
       totalExtra += lineTotal;
     }
 
     _step3Extras = labels;
-    _step3ExtrasTotal =
-        labels.isEmpty ? null : _formatMoney(totalExtra, 'EUR');
+    _step3ExtrasTotal = labels.isEmpty ? null : _formatMoney(totalExtra, 'EUR');
   }
 
   void _hydrateHeaderFromJson(Map<String, dynamic> m) {
@@ -1953,8 +1849,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
   static String? _fmtDate(String? iso) {
     if (iso == null || iso.trim().isEmpty) return null;
     final raw = iso.trim();
-    final dt =
-        DateTime.tryParse(raw) ?? DateTime.tryParse(raw.replaceFirst(' ', 'T'));
+    final dt = DateTime.tryParse(raw) ?? DateTime.tryParse(raw.replaceFirst(' ', 'T'));
     if (dt == null) return raw;
     try {
       return DateFormat('d MMM, y HH:mm', 'it_IT').format(dt.toLocal());
@@ -1986,17 +1881,12 @@ class _ConfirmPageState extends State<ConfirmPage> {
     }
   }
 
-  static String? _formatHeaderPrice(
-    Map<String, dynamic> dataJson,
-    Offer? selected,
-  ) {
+  static String? _formatHeaderPrice(Map<String, dynamic> dataJson, Offer? selected) {
     String? fmt(num? amount, String? currencyCode) {
       if (amount == null) return null;
-      final symbol =
-          (currencyCode == null || currencyCode == 'EUR') ? '€' : currencyCode;
+      final symbol = (currencyCode == null || currencyCode == 'EUR') ? '€' : currencyCode;
       try {
-        return NumberFormat.currency(locale: 'it_IT', symbol: symbol)
-            .format(amount);
+        return NumberFormat.currency(locale: 'it_IT', symbol: symbol).format(amount);
       } catch (_) {
         return '$symbol ${amount.toStringAsFixed(2)}';
       }
@@ -2016,8 +1906,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
 
     num? amountFromTc(Map<String, dynamic>? tc) {
       if (tc == null) return null;
-      return (tc['RateTotalAmount'] as num?) ??
-          (tc['EstimatedTotalAmount'] as num?);
+      return (tc['RateTotalAmount'] as num?) ?? (tc['EstimatedTotalAmount'] as num?);
     }
 
     String? currFromTc(Map<String, dynamic>? tc) {
@@ -2040,14 +1929,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
       for (final v in vehicles) {
         if (v is! Map) continue;
         final vm = v.cast<String, dynamic>();
-        final vid = (vm['VehicleId'] ??
-                vm['vehicleId'] ??
-                vm['id'] ??
-                vm['Id'] ??
-                vm['Code'] ??
-                vm['code'])
-            ?.toString();
-
+        final vid = (vm['VehicleId'] ?? vm['vehicleId'] ?? vm['id'] ?? vm['Id'] ?? vm['Code'] ?? vm['code'])?.toString();
         if (vid != null && wantedIds.contains(vid)) {
           final tc = extractTotalChargeFrom(vm);
           final out = fmt(amountFromTc(tc), currFromTc(tc));
@@ -2055,7 +1937,6 @@ class _ConfirmPageState extends State<ConfirmPage> {
         }
       }
     }
-
     return null;
   }
 
@@ -2071,16 +1952,13 @@ class _ConfirmPageState extends State<ConfirmPage> {
       _dataJson?['ReturnLocation']?.toString() ?? _cfg?.dropoffLocation ?? '';
 
   String get _pickupIso =>
-      _dataJson?['PickUpDateTime']?.toString() ??
-      _cfg?.start.toUtc().toIso8601String() ??
-      '';
+      _dataJson?['PickUpDateTime']?.toString() ?? _cfg?.start.toUtc().toIso8601String() ?? '';
 
   String get _dropoffIso =>
-      _dataJson?['ReturnDateTime']?.toString() ??
-      _cfg?.end.toUtc().toIso8601String() ??
-      '';
+      _dataJson?['ReturnDateTime']?.toString() ?? _cfg?.end.toUtc().toIso8601String() ?? '';
 
-  String get _resolvedChannel => _cfg?.channel ?? 'RENTAL_PREMIUM_POA';
+  String get _resolvedChannel =>
+      _cfg?.channel ?? 'RENTAL_PREMIUM_POA';
 
   String? get _selectedVehicleCode =>
       _selected?.code ?? _selected?.vehicleId ?? _cfg?.vehicleId;
@@ -2096,6 +1974,12 @@ class _ConfirmPageState extends State<ConfirmPage> {
     }
   }
 
+  String _buildVoucherNumber() {
+    final now = DateTime.now().millisecondsSinceEpoch.toString();
+    final suffix = now.substring(max(0, now.length - 8));
+    return 'WEB$suffix';
+  }
+
   List<dynamic> get _selectedVehicleOptionals {
     final rawFromSelected = _selected?.raw['optionals'];
     if (rawFromSelected is List) return rawFromSelected;
@@ -2109,10 +1993,8 @@ class _ConfirmPageState extends State<ConfirmPage> {
     for (final item in items) {
       if (item is! Map) continue;
       final map = item.cast<String, dynamic>();
-      final equip =
-          (map['Equipment'] as Map?)?.cast<String, dynamic>() ?? const {};
-      final equipType =
-          (equip['EquipType'] ?? equip['Code'])?.toString().toUpperCase();
+      final equip = (map['Equipment'] as Map?)?.cast<String, dynamic>() ?? const {};
+      final equipType = (equip['EquipType'] ?? equip['Code'])?.toString().toUpperCase();
       final desc = equip['Description']?.toString().toUpperCase();
       if (equipType == wanted || desc == wanted) {
         return map;
@@ -2124,31 +2006,20 @@ class _ConfirmPageState extends State<ConfirmPage> {
   _BookingPriceBreakdown get _priceBreakdown {
     final selected = _selected;
     final days = _computeRentalDays(_dataJson ?? const {});
-
-    final rawReference = selected?.raw['Reference'];
-    final calc = (rawReference is Map)
-        ? (rawReference['calculated'] as Map?)?.cast<String, dynamic>()
+    final calc = (selected?.raw['Reference'] is Map)
+        ? ((selected!.raw['Reference'] as Map)['calculated'] as Map?)?.cast<String, dynamic>()
         : null;
-
-    final rawTotalCharge =
-        (selected?.raw['TotalCharge'] as Map?)?.cast<String, dynamic>() ??
-            (selected?.raw['total_charge'] as Map?)?.cast<String, dynamic>();
-
-    final dailyRateExVat =
-        (calc?['base_daily'] as num?)?.toDouble() ?? selected?.pricePerDay ?? 0;
-
+    final dailyRateExVat = (calc?['base_daily'] as num?)?.toDouble() ?? selected?.pricePerDay ?? 0;
     final rentalExVat = (calc?['pre_vat'] as num?)?.toDouble() ??
-        (rawTotalCharge?['RateTotalAmount'] as num?)?.toDouble() ??
+        ((selected?.raw['TotalCharge'] as Map?)?['RateTotalAmount'] as num?)?.toDouble() ??
         (dailyRateExVat * days);
-
     final rentalIncVat = (calc?['total'] as num?)?.toDouble() ??
-        (rawTotalCharge?['EstimatedTotalAmount'] as num?)?.toDouble() ??
+        ((selected?.raw['TotalCharge'] as Map?)?['EstimatedTotalAmount'] as num?)?.toDouble() ??
         selected?.total ??
         rentalExVat;
 
     final extraLines = <_PriceLine>[];
     final insuranceLines = <_PriceLine>[];
-
     for (final extra in _selectedExtras) {
       final raw = _findOptionalRaw(extra.code, _selectedVehicleOptionals);
       final equip = raw == null
@@ -2157,22 +2028,16 @@ class _ConfirmPageState extends State<ConfirmPage> {
       final charge = raw == null
           ? const <String, dynamic>{}
           : Map<String, dynamic>.from(raw['Charge'] as Map? ?? const {});
-
       final title = (equip['Description'] ?? extra.code).toString();
-      final baseAmount = (charge['Amount'] as num?)?.toDouble() ?? 0;
-      final amount =
-          baseAmount * max(1, extra.qty) * (extra.perDay ? days : 1);
-
+      final amount = ((charge['Amount'] as num?)?.toDouble() ?? 0) * max(1, extra.qty);
       final line = _PriceLine(
         label: extra.qty > 1 ? '$title x${extra.qty}' : title,
         amount: amount,
       );
-
       final normalized = '${extra.code} $title'.toUpperCase();
       final isInsurance = normalized.contains('SILVER') ||
           normalized.contains('GOLD') ||
           normalized.contains('DIAMOND');
-
       if (isInsurance) {
         insuranceLines.add(line);
       } else {
@@ -2180,10 +2045,8 @@ class _ConfirmPageState extends State<ConfirmPage> {
       }
     }
 
-    final extrasTotal =
-        extraLines.fold<double>(0, (sum, e) => sum + e.amount);
-    final insuranceTotal =
-        insuranceLines.fold<double>(0, (sum, e) => sum + e.amount);
+    final extrasTotal = extraLines.fold<double>(0, (sum, e) => sum + e.amount);
+    final insuranceTotal = insuranceLines.fold<double>(0, (sum, e) => sum + e.amount);
 
     return _BookingPriceBreakdown(
       days: days,
@@ -2208,25 +2071,19 @@ class _ConfirmPageState extends State<ConfirmPage> {
   }
 
   String? Function(String?) get _requiredValidator =>
-      (value) => (value == null || value.trim().isEmpty)
-          ? 'Campo obbligatorio'
-          : null;
+      (value) => (value == null || value.trim().isEmpty) ? 'Campo obbligatorio' : null;
 
   String? _emailValidator(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Campo obbligatorio';
-    }
+    if (value == null || value.trim().isEmpty) return 'Campo obbligatorio';
     final v = value.trim();
-    final ok =
-        v.contains('@') && v.contains('.') && !v.startsWith('@') && !v.endsWith('@');
+    final ok = v.contains('@') && v.contains('.') && !v.startsWith('@') && !v.endsWith('@');
     return ok ? null : 'E-mail non valida';
   }
 
   String? _confirmEmailValidator(String? value) {
     final required = _emailValidator(value);
     if (required != null) return required;
-    if (value!.trim().toLowerCase() !=
-        _customerEmail.text.trim().toLowerCase()) {
+    if (value!.trim().toLowerCase() != _customerEmail.text.trim().toLowerCase()) {
       return 'Le e-mail non coincidono';
     }
     return null;
@@ -2260,11 +2117,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
   }
 }
 
-enum PaymentMethod {
-  payNow,
-  payAtDesk,
-  scalapay,
-}
+enum PaymentMethod { payNow, payAtDesk, scalapay }
 
 class _GridChild {
   final Widget child;
@@ -2291,19 +2144,14 @@ class _NoGlow extends ScrollBehavior {
     BuildContext context,
     Widget child,
     ScrollableDetails details,
-  ) {
-    return child;
-  }
+  ) => child;
 }
 
 class _PriceLine {
   final String label;
   final double amount;
 
-  const _PriceLine({
-    required this.label,
-    required this.amount,
-  });
+  const _PriceLine({required this.label, required this.amount});
 }
 
 class _BookingPriceBreakdown {
@@ -2334,7 +2182,6 @@ class _BookingPriceBreakdown {
 
 class _DriverFormBundle {
   final String label;
-
   final firstName = TextEditingController();
   final lastName = TextEditingController();
   final email = TextEditingController();
@@ -2361,7 +2208,6 @@ class _DriverFormBundle {
     if (firstName.text.trim().isEmpty || lastName.text.trim().isEmpty) {
       return null;
     }
-
     return {
       'firstName': firstName.text.trim(),
       'lastName': lastName.text.trim(),
@@ -2373,17 +2219,12 @@ class _DriverFormBundle {
       'street': street.text.trim().isEmpty ? null : street.text.trim(),
       'num': num.text.trim().isEmpty ? null : num.text.trim(),
       'taxCode': taxCode.text.trim().isEmpty ? null : taxCode.text.trim(),
-      'birthPlace':
-          birthPlace.text.trim().isEmpty ? null : birthPlace.text.trim(),
-      'birthProvince':
-          birthProvince.text.trim().isEmpty ? null : birthProvince.text.trim(),
+      'birthPlace': birthPlace.text.trim().isEmpty ? null : birthPlace.text.trim(),
+      'birthProvince': birthProvince.text.trim().isEmpty ? null : birthProvince.text.trim(),
       'birthDate': _toApiDateStatic(birthDate.text.trim()),
       'document': document.text.trim().isEmpty ? null : document.text.trim(),
-      'documentNumber': documentNumber.text.trim().isEmpty
-          ? null
-          : documentNumber.text.trim(),
-      'licenceType':
-          licenceType.text.trim().isEmpty ? null : licenceType.text.trim(),
+      'documentNumber': documentNumber.text.trim().isEmpty ? null : documentNumber.text.trim(),
+      'licenceType': licenceType.text.trim().isEmpty ? null : licenceType.text.trim(),
       'issueBy': issueBy.text.trim().isEmpty ? null : issueBy.text.trim(),
       'releaseDate': _toApiDateStatic(releaseDate.text.trim()),
       'expiryDate': _toApiDateStatic(expiryDate.text.trim()),

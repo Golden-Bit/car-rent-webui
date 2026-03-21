@@ -81,6 +81,48 @@ class MyrentRepository {
     );
   }
 
+  Future<ReservationComposeResponse> createReservationCompose({
+    required JsonMap booking,
+    required JsonMap customer,
+    JsonMap? customerUpdate,
+    JsonMap? driver1,
+    JsonMap? driver2,
+    JsonMap? driver3,
+  }) {
+    final req = ReservationComposeRequest(
+      booking: booking,
+      customer: customer,
+      customerUpdate: customerUpdate,
+      driver1: driver1,
+      driver2: driver2,
+      driver3: driver3,
+    );
+
+    return client.createReservationCompose(req, source: kSource);
+  }
+
+  Future<ReservationFullDetailsResponse> getReservationByInternalId(
+    String reservationId,
+  ) {
+    return client.getReservationDetailsByInternalId(
+      reservationId,
+      source: kSource,
+    );
+  }
+
+  Future<ReservationFullDetailsResponse> getReservationByCode({
+    required String reservationCode,
+    required String customerEmail,
+    required String reservationDate,
+  }) {
+    return client.getReservationDetailsByCode(
+      reservationCode: reservationCode,
+      customerEmail: customerEmail,
+      reservationDate: reservationDate,
+      source: kSource,
+    );
+  }
+  
   /// (Opzionale) chiudi il client se decidi di gestire il lifecycle manualmente
   void close() => client.close();
 }

@@ -41,9 +41,9 @@ class _ResultsPageState extends State<ResultsPage> {
   /// Repository per caricare la quotation a partire da InitialConfig
   final MyrentRepository _repo = MyrentRepository();
 
-  bool _hydrated = false;   // ho idratato gli stati interni a partire dalla quotation
-  bool _loading = false;    // sto chiamando il backend
-  String? _error;           // eventuale messaggio d’errore
+  bool _hydrated = false; // ho idratato gli stati interni a partire dalla quotation
+  bool _loading = false; // sto chiamando il backend
+  String? _error; // eventuale messaggio d’errore
 
   Map<String, dynamic>? _rootJson;
   Map<String, dynamic>? _dataJson;
@@ -146,9 +146,8 @@ class _ResultsPageState extends State<ResultsPage> {
   void _hydrateFromQuotation(QuotationResponse q) {
     // 1) Estraggo JSON sorgente
     _rootJson = q.toJson() as Map<String, dynamic>?;
-    _dataJson = (_rootJson?['data'] is Map)
-        ? _rootJson!['data'] as Map<String, dynamic>
-        : null;
+    _dataJson =
+        (_rootJson?['data'] is Map) ? _rootJson!['data'] as Map<String, dynamic> : null;
 
     // 2) Leggo "Vehicles" in modo sicuro (senza assumere i tipi)
     final List<Map<String, dynamic>> raw = (_dataJson?['Vehicles'] is List)
@@ -174,14 +173,12 @@ class _ResultsPageState extends State<ResultsPage> {
 
     // 5) Domini per i filtri (ora che `_all` è popolata)
     _fuels = {
-      for (final o in _all)
-        if (o.fuel?.isNotEmpty == true) o.fuel!
+      for (final o in _all) if (o.fuel?.isNotEmpty == true) o.fuel!
     }.toList()
       ..sort();
 
     _gears = {
-      for (final o in _all)
-        if (o.transmission?.isNotEmpty == true) o.transmission!
+      for (final o in _all) if (o.transmission?.isNotEmpty == true) o.transmission!
     }.toList()
       ..sort();
 
@@ -200,10 +197,7 @@ class _ResultsPageState extends State<ResultsPage> {
     }
 
     // 6) Deep-link avanzato: se step>=3 con auto pre-selezionata, vai direttamente agli extra
-    if (_cfg != null &&
-        (_cfg!.step) >= 3 &&
-        _preselected != null &&
-        _dataJson != null) {
+    if (_cfg != null && (_cfg!.step) >= 3 && _preselected != null && _dataJson != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.push(
           context,
@@ -234,14 +228,10 @@ class _ResultsPageState extends State<ResultsPage> {
 
     // tentativi in ordine: id, vehicleId, code, nationalCode
     return _firstWhereOrNull(
-          (o) =>
-              (o.id?.toString() == vehicleId) ||
-              (o.vehicleId?.toString() == vehicleId),
+          (o) => (o.id?.toString() == vehicleId) || (o.vehicleId?.toString() == vehicleId),
         ) ??
         _firstWhereOrNull(
-          (o) =>
-              (o.code?.toString() == vehicleId) ||
-              (o.nationalCode?.toString() == vehicleId),
+          (o) => (o.code?.toString() == vehicleId) || (o.nationalCode?.toString() == vehicleId),
         );
   }
 
@@ -286,6 +276,7 @@ class _ResultsPageState extends State<ResultsPage> {
   @override
   Widget build(BuildContext context) {
     final double extraBottom = mobileBottomPad(context);
+
     // 1) Loading iniziale: sto chiamando il backend partendo da cfg
     if (_loading && !_hydrated) {
       return _buildLoadingScaffold(
@@ -341,200 +332,201 @@ class _ResultsPageState extends State<ResultsPage> {
 
     return Scaffold(
       appBar: AppUiFlags.showAppBarOf(context) ? const TopNavBar() : null,
+
+      // ✅ MODIFICA: header step + filtri diventano parte dello scroll della pagina.
+      // Manteniamo tutte le funzionalità originali, ma con un UNICO scrollable (CustomScrollView)
+      // che include: StepsHeader, spaziature, filtri e griglia.
       body: hasData
-          ? Column(
-              children: [
+          ? CustomScrollView(
+              slivers: [
                 // HEADER: pagina Step 2 (qui non c'è ancora una vettura selezionata)
-                StepsHeader(
-                  currentStep: 2,
-                  accent: kBrandDark,
-                  step2Title: _preselected?.group,
-                  step2Subtitle: _preselected?.name,
-                  step2Thumb: _preselected?.imageUrl,
-                  step1Pickup: _displayLocationName(
-                        _dataJson!,
-                        codeKey: 'PickUpLocation',
-                        nameCandidates: const [
-                          'PickUpLocationName',
-                          'pickupName',
-                          'PickupName',
-                          'PickupCity',
-                          'pickupCity',
-                        ],
-                      ) ??
-                      _dataJson?['PickUpLocation']?.toString(),
-                  step1Dropoff: _displayLocationName(
-                        _dataJson!,
-                        codeKey: 'ReturnLocation',
-                        nameCandidates: const [
-                          'ReturnLocationName',
-                          'returnName',
-                          'ReturnCity',
-                          'returnCity',
-                        ],
-                      ) ??
-                      _dataJson?['ReturnLocation']?.toString(),
-                  step1Start:
-                      _fmtDate(_dataJson?['PickUpDateTime']?.toString()),
-                  step1End:
-                      _fmtDate(_dataJson?['ReturnDateTime']?.toString()),
-                  // Navigazione dagli step nell'header:
-                  // - clic su step 1 (o "MODIFICA" di step 1) -> torna alla pagina precedente
-                  // - clic su step 2 non fa nulla (siamo già allo step 2)
-                  onTapStep: (n) {
-                    if (n == 1) {
-                      Navigator.of(context).maybePop();
-                    }
-                  },
-                ),
-
-                const SizedBox(height: 12),
-
-                // FILTRI — dropdown ancorati al campo
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 12,
-                    runSpacing: 8,
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.only(right: 6),
-                        child: Text(
-                          'filtra per',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      if (_fuels.isNotEmpty)
-                        _ModernDropdown<String>(
-                          label: 'alimentazione',
-                          value: _fuelFilter,
-                          items: _fuels,
-                          itemLabel: (s) => s,
-                          onChanged: (v) =>
-                              setState(() => _fuelFilter = v),
-                        ),
-                      if (_gears.isNotEmpty)
-                        _ModernDropdown<String>(
-                          label: 'trasmissione',
-                          value: _gearFilter,
-                          items: _gears,
-                          itemLabel: (s) => s,
-                          onChanged: (v) =>
-                              setState(() => _gearFilter = v),
-                        ),
-                      if (_seats.isNotEmpty)
-                        _ModernDropdown<int>(
-                          label: 'numero di posti',
-                          value: _seatsFilter,
-                          items: _seats,
-                          itemLabel: (n) => '$n',
-                          onChanged: (v) =>
-                              setState(() => _seatsFilter = v),
-                        ),
-                    ],
+                SliverToBoxAdapter(
+                  child: StepsHeader(
+                    currentStep: 2,
+                    accent: kBrandDark,
+                    step2Title: _preselected?.group,
+                    step2Subtitle: _preselected?.name,
+                    step2Thumb: _preselected?.imageUrl,
+                    step1Pickup: _displayLocationName(
+                          _dataJson!,
+                          codeKey: 'PickUpLocation',
+                          nameCandidates: const [
+                            'PickUpLocationName',
+                            'pickupName',
+                            'PickupName',
+                            'PickupCity',
+                            'pickupCity',
+                          ],
+                        ) ??
+                        _dataJson?['PickUpLocation']?.toString(),
+                    step1Dropoff: _displayLocationName(
+                          _dataJson!,
+                          codeKey: 'ReturnLocation',
+                          nameCandidates: const [
+                            'ReturnLocationName',
+                            'returnName',
+                            'ReturnCity',
+                            'returnCity',
+                          ],
+                        ) ??
+                        _dataJson?['ReturnLocation']?.toString(),
+                    step1Start: _fmtDate(_dataJson?['PickUpDateTime']?.toString()),
+                    step1End: _fmtDate(_dataJson?['ReturnDateTime']?.toString()),
+                    // Navigazione dagli step nell'header:
+                    // - clic su step 1 (o "MODIFICA" di step 1) -> torna alla pagina precedente
+                    // - clic su step 2 non fa nulla (siamo già allo step 2)
+                    onTapStep: (n) {
+                      if (n == 1) {
+                        Navigator.of(context).maybePop();
+                      }
+                    },
                   ),
                 ),
 
-                const SizedBox(height: 10),
+                const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
+                // FILTRI — dropdown ancorati al campo
+                // ✅ Manteniamo i filtri centrati orizzontalmente:
+                // usiamo WrapAlignment.center (senza cambiare struttura o stile dei chip).
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Wrap(
+                      alignment: WrapAlignment.center, // ✅ centrati orizzontalmente
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 12,
+                      runSpacing: 8,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(right: 6),
+                          child: Text(
+                            'filtra per',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        if (_fuels.isNotEmpty)
+                          _ModernDropdown<String>(
+                            label: 'alimentazione',
+                            value: _fuelFilter,
+                            items: _fuels,
+                            itemLabel: (s) => s,
+                            onChanged: (v) => setState(() => _fuelFilter = v),
+                          ),
+                        if (_gears.isNotEmpty)
+                          _ModernDropdown<String>(
+                            label: 'trasmissione',
+                            value: _gearFilter,
+                            items: _gears,
+                            itemLabel: (s) => s,
+                            onChanged: (v) => setState(() => _gearFilter = v),
+                          ),
+                        if (_seats.isNotEmpty)
+                          _ModernDropdown<int>(
+                            label: 'numero di posti',
+                            value: _seatsFilter,
+                            items: _seats,
+                            itemLabel: (n) => '$n',
+                            onChanged: (v) => setState(() => _seatsFilter = v),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SliverToBoxAdapter(child: SizedBox(height: 10)),
 
                 // GRIGLIA OFFERTE (card altezza fissa)
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (ctx, c) {
-                      const minTile = 500.0;
-                      const spacing = 16.0;
+                // ✅ Convertiamo GridView.builder in SliverGrid per avere un solo scroll.
+                SliverLayoutBuilder(
+                  builder: (ctx, constraints) {
+                    const minTile = 500.0;
+                    const spacing = 16.0;
 
-                      int cols = (c.maxWidth / minTile).floor();
-                      cols = cols.clamp(1, 6);
+                    // In sliver: la dimensione trasversale è constraints.crossAxisExtent
+                    final maxW = constraints.crossAxisExtent;
 
-                      while (cols > 1) {
-                        final available =
-                            c.maxWidth - (cols - 1) * spacing;
-                        final tile = available / cols;
-                        if (tile >= minTile) break;
-                        cols--;
-                      }
+                    int cols = (maxW / minTile).floor();
+                    cols = cols.clamp(1, 6);
 
-                      final filtered = _filtered();
+                    while (cols > 1) {
+                      final available = maxW - (cols - 1) * spacing;
+                      final tile = available / cols;
+                      if (tile >= minTile) break;
+                      cols--;
+                    }
 
-                      return GridView.builder(
-  padding: EdgeInsets.fromLTRB(16, 8, 16, 24 + extraBottom),
-                        gridDelegate:
-                            SliverGridDelegateWithFixedCrossAxisCount(
+                    final filtered = _filtered();
+
+                    return SliverPadding(
+                      padding: EdgeInsets.fromLTRB(16, 8, 16, 24 + extraBottom),
+                      sliver: SliverGrid(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: cols,
                           mainAxisSpacing: spacing,
                           crossAxisSpacing: spacing,
                           mainAxisExtent: VehicleCard.cardHeight,
                         ),
-                        itemCount: filtered.length,
-                        itemBuilder: (_, i) => VehicleCard(
-                          offer: filtered[i],
-                          accent: kBrandDark,
-                          includeItems: const [
-                            'IVA',
-                            'Km illimitati',
-                            'Oneri aeroportuali (ove previsti)',
-                            'Oneri circolazione',
-                            'Riduzione responsabilità danni',
-                            'Riduzione responsabilità furto',
-                          ],
-                          excludeItems: const [
-                            'Traffico all’estero',
-                            'Opzioni facoltative disponibili al desk',
-                          ],
-                          onChoose: () {
-                            final selectedOffer = filtered[i];
+                        delegate: SliverChildBuilderDelegate(
+                          (_, i) => VehicleCard(
+                            offer: filtered[i],
+                            accent: kBrandDark,
+                            includeItems: const [
+                              'IVA',
+                              'Km illimitati',
+                              'Oneri aeroportuali (ove previsti)',
+                              'Oneri circolazione',
+                              'Riduzione responsabilità danni',
+                              'Riduzione responsabilità furto',
+                            ],
+                            excludeItems: const [
+                              'Traffico all’estero',
+                              'Opzioni facoltative disponibili al desk',
+                            ],
+                            onChoose: () {
+                              final selectedOffer = filtered[i];
 
-                            // Partiamo dalla cfg (se presente) o la ricostruiamo dai dati base
-                            final cfgStep3 =
-                                (_cfg ??
-                                        InitialConfig.fromManual(
-                                          pickupCode: _dataJson![
-                                                      'PickUpLocation']
-                                                  ?.toString() ??
-                                              '',
-                                          dropoffCode:
-                                              _dataJson!['ReturnLocation']
-                                                      ?.toString() ??
-                                                  '',
-                                          startUtc: DateTime.parse(
-                                            _dataJson!['PickUpDateTime']
-                                                as String,
-                                          ),
-                                          endUtc: DateTime.parse(
-                                            _dataJson!['ReturnDateTime']
-                                                as String,
-                                          ),
-                                          age: null,
-                                          coupon: null,
-                                          channel: 'RENTAL_PREMIUM_POA',
-                                          initialStep: 3,
-                                        ))
-                                    .copyWith(
-                                      step: 3,
-                                      vehicleId: selectedOffer.id ??
-                                          selectedOffer.vehicleId ??
-                                          selectedOffer.code,
-                                    )
-                                    .withOriginalFromSelf(); // assicura originalMap
+                              // Partiamo dalla cfg (se presente) o la ricostruiamo dai dati base
+                              final cfgStep3 =
+                                  (_cfg ??
+                                          InitialConfig.fromManual(
+                                            pickupCode: _dataJson!['PickUpLocation']?.toString() ?? '',
+                                            dropoffCode: _dataJson!['ReturnLocation']?.toString() ?? '',
+                                            startUtc: DateTime.parse(
+                                              _dataJson!['PickUpDateTime'] as String,
+                                            ),
+                                            endUtc: DateTime.parse(
+                                              _dataJson!['ReturnDateTime'] as String,
+                                            ),
+                                            age: null,
+                                            coupon: null,
+                                            channel: 'RENTAL_PREMIUM_POA',
+                                            initialStep: 3,
+                                          ))
+                                      .copyWith(
+                                        step: 3,
+                                        vehicleId:
+                                            selectedOffer.id ?? selectedOffer.vehicleId ?? selectedOffer.code,
+                                      )
+                                      .withOriginalFromSelf(); // assicura originalMap
 
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ExtrasPage(
-                                  dataJson: _dataJson!,
-                                  selected: selectedOffer,
-                                  initialConfig: cfgStep3,
-                                  preselectedExtras: const [],
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ExtrasPage(
+                                    dataJson: _dataJson!,
+                                    selected: selectedOffer,
+                                    initialConfig: cfgStep3,
+                                    preselectedExtras: const [],
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
+                              );
+                            },
+                          ),
+                          childCount: filtered.length,
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  },
                 ),
               ],
             )
@@ -544,8 +536,8 @@ class _ResultsPageState extends State<ResultsPage> {
 
   List<Offer> _filtered() {
     return _all.where((o) {
-      final okFuel = _fuelFilter == null ||
-          (o.fuel?.toLowerCase() == _fuelFilter!.toLowerCase());
+      final okFuel =
+          _fuelFilter == null || (o.fuel?.toLowerCase() == _fuelFilter!.toLowerCase());
       final okGear = _gearFilter == null ||
           (o.transmission?.toLowerCase() == _gearFilter!.toLowerCase());
       final okSeats = _seatsFilter == null || (o.seats == _seatsFilter);
@@ -709,15 +701,13 @@ class _ModernDropdownState<T> extends State<_ModernDropdown<T>> {
   }
 }
 
-
 class _JsonPretty extends StatelessWidget {
   final Object obj;
   const _JsonPretty({required this.obj});
 
   @override
   Widget build(BuildContext context) {
-    final jsonStr =
-        const JsonEncoder.withIndent('  ').convert(obj);
+    final jsonStr = const JsonEncoder.withIndent('  ').convert(obj);
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Container(
