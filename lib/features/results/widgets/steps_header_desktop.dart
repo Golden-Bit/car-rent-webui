@@ -25,11 +25,8 @@ class StepsHeaderDesktop extends StatelessWidget {
     bool isDone(int n) => n < currentStep;
     bool isCurrent(int n) => n == currentStep;
 
-    Widget vDivider() => const VerticalDivider(
-          width: 1,
-          thickness: 1,
-          color: Color(0xFFE6E6E6),
-        );
+    Widget vDivider() =>
+        const VerticalDivider(width: 1, thickness: 1, color: Color(0xFFE6E6E6));
 
     // Badge numerato
     Widget stepBadge(int n) {
@@ -126,10 +123,7 @@ class StepsHeaderDesktop extends StatelessWidget {
           if (when != null)
             Text(
               when,
-              style: const TextStyle(
-                color: Colors.black54,
-                fontSize: 12.5,
-              ),
+              style: const TextStyle(color: Colors.black54, fontSize: 12.5),
             ),
         ],
       );
@@ -224,7 +218,8 @@ class StepsHeaderDesktop extends StatelessWidget {
       const n = 2;
       final tappable = isDone(n) || isCurrent(n);
 
-      final hasCar = (data.step2Title?.trim().isNotEmpty == true) ||
+      final hasCar =
+          (data.step2Title?.trim().isNotEmpty == true) ||
           (data.step2Subtitle?.trim().isNotEmpty == true) ||
           (data.step2Thumb?.trim().isNotEmpty == true) ||
           (data.step2Price?.trim().isNotEmpty == true);
@@ -322,7 +317,7 @@ class StepsHeaderDesktop extends StatelessWidget {
 
       final hasInsurance =
           (data.step3InsuranceName?.trim().isNotEmpty == true) ||
-              (data.step3InsuranceTotal?.trim().isNotEmpty == true);
+          (data.step3InsuranceTotal?.trim().isNotEmpty == true);
 
       List<Widget> extrasWidgets() {
         const maxShow = 3;
@@ -334,11 +329,7 @@ class StepsHeaderDesktop extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 4),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.add_circle,
-                    size: 14,
-                    color: Colors.black45,
-                  ),
+                  const Icon(Icons.add_circle, size: 14, color: Colors.black45),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
@@ -405,11 +396,8 @@ class StepsHeaderDesktop extends StatelessWidget {
               child: Row(
                 children: [
                   const Text(
-                    'Totale assicurazione:',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
+                    'Totale pacchetto:',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
                   ),
                   const SizedBox(width: 6),
                   Text(

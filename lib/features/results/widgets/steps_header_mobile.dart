@@ -154,8 +154,9 @@ class _StepsHeaderMobileState extends State<StepsHeaderMobile> {
             firstChild: const SizedBox.shrink(),
             secondChild: Container(
               width: double.infinity,
-              color: Colors
-                  .transparent, // lascia vedere lo sfondo della pagina sotto
+              color:
+                  Colors
+                      .transparent, // lascia vedere lo sfondo della pagina sotto
               padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
               child: Material(
                 elevation: 6, // <-- ombra per “sopraelevare” il riepilogo
@@ -173,9 +174,10 @@ class _StepsHeaderMobileState extends State<StepsHeaderMobile> {
                 ),
               ),
             ),
-            crossFadeState: _showSummary
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
+            crossFadeState:
+                _showSummary
+                    ? CrossFadeState.showSecond
+                    : CrossFadeState.showFirst,
             duration: const Duration(milliseconds: 180),
           ),
         ],
@@ -205,11 +207,7 @@ class _SummaryContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const divider = Divider(
-      height: 20,
-      thickness: 1,
-      color: Color(0xFFE6E6E6),
-    );
+    const divider = Divider(height: 20, thickness: 1, color: Color(0xFFE6E6E6));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -345,10 +343,7 @@ class _SummaryContent extends StatelessWidget {
           if (when != null)
             Text(
               when,
-              style: const TextStyle(
-                color: Colors.black54,
-                fontSize: 11,
-              ),
+              style: const TextStyle(color: Colors.black54, fontSize: 11),
             ),
         ],
       );
@@ -366,7 +361,8 @@ class _SummaryContent extends StatelessWidget {
 
   // ---------- BODY STEP 2 ----------
   Widget _step2Body() {
-    final hasCar = (data.step2Title?.trim().isNotEmpty == true) ||
+    final hasCar =
+        (data.step2Title?.trim().isNotEmpty == true) ||
         (data.step2Subtitle?.trim().isNotEmpty == true) ||
         (data.step2Price?.trim().isNotEmpty == true);
 
@@ -392,10 +388,7 @@ class _SummaryContent extends StatelessWidget {
         if (data.step2Title != null)
           Text(
             data.step2Title!,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 11.5,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11.5),
           ),
         Text(
           (data.step2Subtitle ?? '—').toUpperCase(),
@@ -410,10 +403,7 @@ class _SummaryContent extends StatelessWidget {
         const SizedBox(height: 4),
         const Text(
           'o modello simile*',
-          style: TextStyle(
-            color: Colors.black54,
-            fontSize: 11,
-          ),
+          style: TextStyle(color: Colors.black54, fontSize: 11),
         ),
         if (data.step2Price != null && data.step2Price!.trim().isNotEmpty) ...[
           const SizedBox(height: 4),
@@ -437,7 +427,7 @@ class _SummaryContent extends StatelessWidget {
 
     final hasInsurance =
         (data.step3InsuranceName?.trim().isNotEmpty == true) ||
-            (data.step3InsuranceTotal?.trim().isNotEmpty == true);
+        (data.step3InsuranceTotal?.trim().isNotEmpty == true);
 
     final children = <Widget>[];
 
@@ -445,11 +435,7 @@ class _SummaryContent extends StatelessWidget {
       children.add(
         Row(
           children: [
-            const Icon(
-              Icons.shield_outlined,
-              size: 16,
-              color: Colors.black45,
-            ),
+            const Icon(Icons.shield_outlined, size: 16, color: Colors.black45),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
@@ -474,11 +460,8 @@ class _SummaryContent extends StatelessWidget {
             child: Row(
               children: [
                 const Text(
-                  'Totale assicurazione:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 11.5,
-                  ),
+                  'Totale pacchetto:',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 11.5),
                 ),
                 const SizedBox(width: 6),
                 Text(
@@ -510,11 +493,7 @@ class _SummaryContent extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 2),
             child: Row(
               children: [
-                const Icon(
-                  Icons.add_circle,
-                  size: 14,
-                  color: Colors.black45,
-                ),
+                const Icon(Icons.add_circle, size: 14, color: Colors.black45),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -534,10 +513,7 @@ class _SummaryContent extends StatelessWidget {
         children.add(
           Text(
             '+$more altro/i',
-            style: const TextStyle(
-              color: Colors.black54,
-              fontSize: 11.5,
-            ),
+            style: const TextStyle(color: Colors.black54, fontSize: 11.5),
           ),
         );
       }
@@ -549,10 +525,7 @@ class _SummaryContent extends StatelessWidget {
             children: [
               const Text(
                 'Totale extra:',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 11.5,
-                ),
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5),
               ),
               const SizedBox(width: 6),
               Text(

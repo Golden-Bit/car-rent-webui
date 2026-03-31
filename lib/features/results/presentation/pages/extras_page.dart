@@ -64,8 +64,10 @@ class _ExtrasPageState extends State<ExtrasPage> {
   late final List<_OptionalVM> _optionals;
 
   /// Binding “Assicurazioni <-> Extra”
-  late final Map<int, int?> _insurancePackageIndexByPlan; // planIndex -> rawIndex package
-  late final Set<int> _insurancePackageIndices; // tutti i rawIndex dei package (da nascondere in griglia)
+  late final Map<int, int?>
+  _insurancePackageIndexByPlan; // planIndex -> rawIndex package
+  late final Set<int>
+  _insurancePackageIndices; // tutti i rawIndex dei package (da nascondere in griglia)
 
   /// Penalità vincolate ai pacchetti (0€) -> planIndex -> set rawIndex
   late final Map<int, Set<int>> _planPenaltyIndices;
@@ -152,7 +154,8 @@ class _ExtrasPageState extends State<ExtrasPage> {
     if (index < 0 || index >= list.length) return null;
     final m = (list[index] as Map).cast<String, dynamic>();
     final equip = (m['Equipment'] as Map?)?.cast<String, dynamic>();
-    return (equip?['EquipType'] as String?) ?? (equip?['Description'] as String?);
+    return (equip?['EquipType'] as String?) ??
+        (equip?['Description'] as String?);
   }
 
   bool _isLocked(int rawIndex) => _lockedOptionals.contains(rawIndex);
@@ -163,15 +166,20 @@ class _ExtrasPageState extends State<ExtrasPage> {
 
   void _initInsuranceBindings() {
     // 1) trova i 3 package tra gli extra
-    final silverPkg = _findInsurancePackageIndex(planToken: 'SILVER', italianToken: 'ARGENTO');
-    final goldPkg = _findInsurancePackageIndex(planToken: 'GOLD', italianToken: 'ORO');
-    final diamondPkg = _findInsurancePackageIndex(planToken: 'DIAMOND', italianToken: 'DIAMANTE');
+    final silverPkg = _findInsurancePackageIndex(
+      planToken: 'SILVER',
+      italianToken: 'ARGENTO',
+    );
+    final goldPkg = _findInsurancePackageIndex(
+      planToken: 'GOLD',
+      italianToken: 'ORO',
+    );
+    final diamondPkg = _findInsurancePackageIndex(
+      planToken: 'DIAMOND',
+      italianToken: 'DIAMANTE',
+    );
 
-    _insurancePackageIndexByPlan = {
-      0: silverPkg,
-      1: goldPkg,
-      2: diamondPkg,
-    };
+    _insurancePackageIndexByPlan = {0: silverPkg, 1: goldPkg, 2: diamondPkg};
 
     _insurancePackageIndices = {
       if (silverPkg != null) silverPkg,
@@ -189,9 +197,15 @@ class _ExtrasPageState extends State<ExtrasPage> {
       if (!n.contains('PENALITA')) continue;
 
       // Vincolate: solo quelle che portano il token del piano (SILVER/GOLD/DIAMOND o ARGENTO/ORO/DIAMANTE)
-      if (n.contains('SILVER') || n.contains('ARGENTO')) _planPenaltyIndices[0]!.add(i);
-      if (n.contains('GOLD') || n.contains('ORO')) _planPenaltyIndices[1]!.add(i);
-      if (n.contains('DIAMOND') || n.contains('DIAMANTE')) _planPenaltyIndices[2]!.add(i);
+      if (n.contains('SILVER') || n.contains('ARGENTO')) {
+        _planPenaltyIndices[0]!.add(i);
+      }
+      if (n.contains('GOLD') || n.contains('ORO')) {
+        _planPenaltyIndices[1]!.add(i);
+      }
+      if (n.contains('DIAMOND') || n.contains('DIAMANTE')) {
+        _planPenaltyIndices[2]!.add(i);
+      }
     }
 
     _linkedPenaltyIndices = {
@@ -211,48 +225,61 @@ class _ExtrasPageState extends State<ExtrasPage> {
     // Manteniamo la UI “€/giorno + totale per giorni”: impostiamo pricePerDay = (totalePackage / giorni)
     _insurancePlans = [
       _makePlanDef(
-        title: 'SILVER',
+        title: 'SILVER PACKAGE',
         planIndex: 0,
-        // mappatura “vecchia” (Silver ~ vecchio Gold)
-        theftText: '€ 1.600,00',
+        damageTextTop: 'Come da tabella',
+        damageTextBottom: 'Riduzione deposito cauzionale come da tabella',
+        theftText: '€ 0,00',
         items: const [
-          _PlanItem('Assistenza stradale Plus', included: false),
-          _PlanItem('Protezione PAI', included: false),
-          _PlanItem('Guidatore aggiuntivo', included: false),
-          _PlanItem('Priority lane', included: false),
+          _PlanItem('Responsabilita furto a 0€', included: true),
+          _PlanItem(
+            'Deposito cauzionale ridotto (come da tabella)',
+            included: true,
+          ),
+          _PlanItem('Responsabilita danni', included: false),
+          _PlanItem('Danni da incuria o negligenza', included: false),
         ],
       ),
       _makePlanDef(
-        title: 'GOLD',
+        title: 'GOLD PACKAGE',
         planIndex: 1,
-        // Gold ~ vecchio Platinum
-        theftText: '€ 0,00',
+        damageTextTop: '€ 0,00',
+        damageTextBottom: 'Riduzione deposito cauzionale come da tabella',
+        theftText: 'Come da tabella',
         items: const [
-          _PlanItem('Assistenza stradale Plus', included: true),
-          _PlanItem('Protezione PAI', included: false),
-          _PlanItem('Guidatore aggiuntivo', included: false),
-          _PlanItem('Priority lane', included: false),
+          _PlanItem('Responsabilita danni a 0€', included: true),
+          _PlanItem(
+            'Deposito cauzionale ridotto (come da tabella)',
+            included: true,
+          ),
+          _PlanItem('Responsabilita furto', included: false),
+          _PlanItem('Danni da incuria o negligenza', included: false),
         ],
       ),
       _makePlanDef(
-        title: 'DIAMOND',
+        title: 'DIAMOND PACKAGE',
         planIndex: 2,
-        // Diamond ~ vecchio Premium
+        damageTextTop: '€ 0,00',
+        damageTextBottom: 'Deposito cauzionale ridotto a 100€',
         theftText: '€ 0,00',
         items: const [
-          _PlanItem('Assistenza stradale Plus', included: true),
-          _PlanItem('Protezione PAI', included: true),
-          _PlanItem('Guidatore aggiuntivo', included: true),
-          _PlanItem('Priority lane', included: true),
+          _PlanItem('Responsabilita danni a 0€', included: true),
+          _PlanItem('Responsabilita furto a 0€', included: true),
+          _PlanItem('Deposito cauzionale ridotto a 100€', included: true),
+          _PlanItem('Danni da incuria o negligenza', included: false),
         ],
       ),
     ];
   }
 
-  int? _findInsurancePackageIndex({required String planToken, required String italianToken}) {
+  int? _findInsurancePackageIndex({
+    required String planToken,
+    required String italianToken,
+  }) {
     for (var i = 0; i < _rawOptionals.length; i++) {
       final n = _norm('${_descAt(i)} ${_equipTypeAt(i)}');
-      final isPkg = (n.contains('PACKAGE') || n.contains('PACCHETTO')) &&
+      final isPkg =
+          (n.contains('PACKAGE') || n.contains('PACCHETTO')) &&
           (n.contains(planToken) || n.contains(italianToken));
       if (isPkg) return i;
     }
@@ -262,6 +289,8 @@ class _ExtrasPageState extends State<ExtrasPage> {
   _InsurancePlanDef _makePlanDef({
     required String title,
     required int planIndex,
+    required String damageTextTop,
+    required String damageTextBottom,
     required String theftText,
     required List<_PlanItem> items,
   }) {
@@ -269,12 +298,15 @@ class _ExtrasPageState extends State<ExtrasPage> {
     final total = (pkgIdx != null) ? _amountAt(pkgIdx) : 0;
     final currency = (pkgIdx != null) ? _currencyAt(pkgIdx) : 'EUR';
 
-    final perDay = (_rentalDays <= 0) ? total.toDouble() : (total / _rentalDays).toDouble();
+    final perDay =
+        (_rentalDays <= 0)
+            ? total.toDouble()
+            : (total / _rentalDays).toDouble();
 
     return _InsurancePlanDef(
       title: title,
-      damageTextTop: '€ 0,00',
-      damageTextBottom: 'Nessun costo',
+      damageTextTop: damageTextTop,
+      damageTextBottom: damageTextBottom,
       theftText: theftText,
       items: items,
       pricePerDay: perDay,
@@ -338,7 +370,10 @@ class _ExtrasPageState extends State<ExtrasPage> {
 
       _selectedOptionals.add(rawIndex);
       if (_optionals[rawIndex].multipliable) {
-        _qtyByOptionalIndex[rawIndex] = max(1, _qtyByOptionalIndex[rawIndex] ?? 1);
+        _qtyByOptionalIndex[rawIndex] = max(
+          1,
+          _qtyByOptionalIndex[rawIndex] ?? 1,
+        );
       }
     }
   }
@@ -410,7 +445,10 @@ class _ExtrasPageState extends State<ExtrasPage> {
       } else {
         _selectedOptionals.add(rawIndex);
         if (_optionals[rawIndex].multipliable) {
-          _qtyByOptionalIndex[rawIndex] = max(1, _qtyByOptionalIndex[rawIndex] ?? 1);
+          _qtyByOptionalIndex[rawIndex] = max(
+            1,
+            _qtyByOptionalIndex[rawIndex] ?? 1,
+          );
         }
       }
     });
@@ -460,8 +498,9 @@ class _ExtrasPageState extends State<ExtrasPage> {
   List<String> get _extrasForHeader {
     final items = <String>[];
 
-    final sorted = _selectedOptionals.toList()
-      ..sort((a, b) => _optionals[a].title.compareTo(_optionals[b].title));
+    final sorted =
+        _selectedOptionals.toList()
+          ..sort((a, b) => _optionals[a].title.compareTo(_optionals[b].title));
 
     for (final rawIndex in sorted) {
       final title = _optionals[rawIndex].title;
@@ -482,11 +521,11 @@ class _ExtrasPageState extends State<ExtrasPage> {
   String? get _insuranceNameForHeader {
     switch (_selectedPlan) {
       case 0:
-        return 'SILVER';
+        return 'SILVER PACKAGE';
       case 1:
-        return 'GOLD';
+        return 'GOLD PACKAGE';
       case 2:
-        return 'DIAMOND';
+        return 'DIAMOND PACKAGE';
       default:
         return null;
     }
@@ -506,53 +545,54 @@ class _ExtrasPageState extends State<ExtrasPage> {
 
   Future<void> _handleProceed(BuildContext context) async {
     if (_selectedPlan == -1) {
-final proceed = await showDialog<bool>(
-  context: context,
-  builder: (ctx) => Theme(
-    data: Theme.of(ctx).copyWith(
-      dialogTheme: const DialogThemeData(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-      ),
-      colorScheme: Theme.of(ctx).colorScheme.copyWith(
-            surface: Colors.white,
-            onSurface: Colors.black87,
-          ),
-    ),
-    child: AlertDialog(
-      backgroundColor: Colors.white,
-      surfaceTintColor: Colors.transparent,
-      titleTextStyle: const TextStyle(
-        color: Colors.black87,
-        fontWeight: FontWeight.w700,
-        fontSize: 16,
-      ),
-      contentTextStyle: const TextStyle(
-        color: Colors.black87,
-        fontSize: 14,
-      ),
-      title: const Text('Procedere senza assicurazione?'),
-      content: const Text(
-        'Sicuro di voler procedere senza aver selezionato nessun pacchetto assicurativo?',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(false),
-          child: const Text('Torna indietro'),
-        ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: kBrandDark,
-            foregroundColor: Colors.white,
-            elevation: 0,
-          ),
-          onPressed: () => Navigator.of(ctx).pop(true),
-          child: const Text('Procedi'),
-        ),
-      ],
-    ),
-  ),
-);
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder:
+            (ctx) => Theme(
+              data: Theme.of(ctx).copyWith(
+                dialogTheme: const DialogThemeData(
+                  backgroundColor: Colors.white,
+                  surfaceTintColor: Colors.transparent,
+                ),
+                colorScheme: Theme.of(ctx).colorScheme.copyWith(
+                  surface: Colors.white,
+                  onSurface: Colors.black87,
+                ),
+              ),
+              child: AlertDialog(
+                backgroundColor: Colors.white,
+                surfaceTintColor: Colors.transparent,
+                titleTextStyle: const TextStyle(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+                contentTextStyle: const TextStyle(
+                  color: Colors.black87,
+                  fontSize: 14,
+                ),
+                title: const Text('Procedere senza pacchetto?'),
+                content: const Text(
+                  'Sicuro di voler procedere senza aver selezionato nessun pacchetto?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                    child: const Text('Torna indietro'),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kBrandDark,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                    ),
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    child: const Text('Procedi'),
+                  ),
+                ],
+              ),
+            ),
+      );
 
       if (proceed != true) return;
     }
@@ -564,14 +604,16 @@ final proceed = await showDialog<bool>(
     // Costruisci la lista di InitialExtra dai selezionati (include 0€ + package + penalità vincolate)
     final extras = <InitialExtra>[];
 
-    final sorted = _selectedOptionals.toList()
-      ..sort((a, b) => _optionals[a].title.compareTo(_optionals[b].title));
+    final sorted =
+        _selectedOptionals.toList()
+          ..sort((a, b) => _optionals[a].title.compareTo(_optionals[b].title));
 
     for (final rawIndex in sorted) {
       if (rawIndex < 0 || rawIndex >= _rawOptionals.length) continue;
 
       final equip = _equipAt(rawIndex);
-      final code = (equip['EquipType'] as String?) ??
+      final code =
+          (equip['EquipType'] as String?) ??
           (equip['Description'] as String?) ??
           'EXTRA_${rawIndex + 1}';
 
@@ -580,13 +622,7 @@ final proceed = await showDialog<bool>(
       // qty regolabile SOLO se multipliable e non locked; altrimenti 1
       final qty = (multipliable && !_isLocked(rawIndex)) ? _qtyOf(rawIndex) : 1;
 
-      extras.add(
-        InitialExtra(
-          code: code,
-          qty: qty,
-          perDay: multipliable,
-        ),
-      );
+      extras.add(InitialExtra(code: code, qty: qty, perDay: multipliable));
     }
 
     final pickCode = widget.dataJson['PickUpLocation']?.toString() ?? '';
@@ -594,26 +630,33 @@ final proceed = await showDialog<bool>(
     final startIso = widget.dataJson['PickUpDateTime']?.toString();
     final endIso = widget.dataJson['ReturnDateTime']?.toString();
 
-    InitialConfig base = widget.initialConfig ??
+    InitialConfig base =
+        widget.initialConfig ??
         InitialConfig.fromManual(
           pickupCode: pickCode,
           dropoffCode: dropCode,
-          startUtc: startIso != null ? DateTime.parse(startIso) : DateTime.now().toUtc(),
-          endUtc: endIso != null ? DateTime.parse(endIso) : DateTime.now().toUtc(),
+          startUtc:
+              startIso != null
+                  ? DateTime.parse(startIso)
+                  : DateTime.now().toUtc(),
+          endUtc:
+              endIso != null ? DateTime.parse(endIso) : DateTime.now().toUtc(),
           channel: 'WEB_APP',
           initialStep: 3,
         );
 
-    final cfgForConfirm = base
-        .copyWith(
-          step: 4,
-          vehicleId: base.vehicleId ??
-              widget.selected.id ??
-              widget.selected.vehicleId ??
-              widget.selected.code,
-          extras: extras,
-        )
-        .withOriginalFromSelf();
+    final cfgForConfirm =
+        base
+            .copyWith(
+              step: 4,
+              vehicleId:
+                  base.vehicleId ??
+                  widget.selected.id ??
+                  widget.selected.vehicleId ??
+                  widget.selected.code,
+              extras: extras,
+            )
+            .withOriginalFromSelf();
 
     Navigator.pushNamed(
       context,
@@ -654,7 +697,8 @@ final proceed = await showDialog<bool>(
               step3InsuranceTotal: _insuranceTotalFmtForHeader,
               step3Extras: _extrasForHeader,
               step3ExtrasTotal: _extrasTotalFmt,
-              step1Pickup: _displayLocationName(
+              step1Pickup:
+                  _displayLocationName(
                     widget.dataJson,
                     codeKey: 'PickUpLocation',
                     nameCandidates: const [
@@ -662,22 +706,25 @@ final proceed = await showDialog<bool>(
                       'pickupName',
                       'PickupName',
                       'PickupCity',
-                      'pickupCity'
+                      'pickupCity',
                     ],
                   ) ??
                   widget.dataJson['PickUpLocation']?.toString(),
-              step1Dropoff: _displayLocationName(
+              step1Dropoff:
+                  _displayLocationName(
                     widget.dataJson,
                     codeKey: 'ReturnLocation',
                     nameCandidates: const [
                       'ReturnLocationName',
                       'returnName',
                       'ReturnCity',
-                      'returnCity'
+                      'returnCity',
                     ],
                   ) ??
                   widget.dataJson['ReturnLocation']?.toString(),
-              step1Start: _fmtDate(widget.dataJson['PickUpDateTime']?.toString()),
+              step1Start: _fmtDate(
+                widget.dataJson['PickUpDateTime']?.toString(),
+              ),
               step1End: _fmtDate(widget.dataJson['ReturnDateTime']?.toString()),
               step2Title: widget.selected.group ?? 'Auto',
               step2Subtitle: widget.selected.name ?? '',
@@ -749,52 +796,49 @@ final proceed = await showDialog<bool>(
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               sliver: SliverGrid(
-                delegate: SliverChildBuilderDelegate(
-                  (context, gridPos) {
-                    final rawIndex = _displayIndices[gridPos];
-                    final it = _optionals[rawIndex];
+                delegate: SliverChildBuilderDelegate((context, gridPos) {
+                  final rawIndex = _displayIndices[gridPos];
+                  final it = _optionals[rawIndex];
 
-                    final isSel = _selectedOptionals.contains(rawIndex);
-                    final raw = _rawAt(rawIndex);
+                  final isSel = _selectedOptionals.contains(rawIndex);
+                  final raw = _rawAt(rawIndex);
 
-                    final isLocked = _isLocked(rawIndex);
+                  final isLocked = _isLocked(rawIndex);
 
-                    // quantità: solo se selezionato + multipliable + NON locked
-                    final showQty = isSel && it.multipliable && !isLocked;
-                    final qty = showQty ? _qtyOf(rawIndex) : 1;
+                  // quantità: solo se selezionato + multipliable + NON locked
+                  final showQty = isSel && it.multipliable && !isLocked;
+                  final qty = showQty ? _qtyOf(rawIndex) : 1;
 
-                    // Locked label / reason
-                    String? lockLabel;
-                    String? lockHint;
+                  // Locked label / reason
+                  String? lockLabel;
+                  String? lockHint;
 
-                    if (_linkedPenaltyIndices.contains(rawIndex)) {
-                      lockLabel = isSel ? 'Vincolato' : 'Vincolato';
-                      lockHint = 'Associato al pacchetto assicurativo';
-                    } else if (_amountAt(rawIndex) == 0) {
-                      lockLabel = 'Incluso';
-                      lockHint = 'Extra a costo zero';
-                    } else if (_insurancePackageIndices.contains(rawIndex)) {
-                      // non dovrebbe mai succedere in griglia (li filtriamo), ma per sicurezza:
-                      lockLabel = 'Assicurazione';
-                      lockHint = 'Selezionabile solo dalla sezione assicurazioni';
-                    }
+                  if (_linkedPenaltyIndices.contains(rawIndex)) {
+                    lockLabel = isSel ? 'Vincolato' : 'Vincolato';
+                    lockHint = 'Associato al pacchetto selezionato';
+                  } else if (_amountAt(rawIndex) == 0) {
+                    lockLabel = 'Incluso';
+                    lockHint = 'Extra a costo zero';
+                  } else if (_insurancePackageIndices.contains(rawIndex)) {
+                    // non dovrebbe mai succedere in griglia (li filtriamo), ma per sicurezza:
+                    lockLabel = 'Pacchetto';
+                    lockHint = 'Selezionabile solo dalla sezione pacchetti';
+                  }
 
-                    return _OptionalCard(
-                      vm: it,
-                      rawJson: raw,
-                      selected: isSel,
-                      locked: isLocked,
-                      lockedLabel: lockLabel,
-                      lockedHint: lockHint,
-                      showQty: showQty,
-                      quantity: qty,
-                      onAddRemove: () => _toggleOptional(rawIndex),
-                      onIncQty: () => _incQty(rawIndex),
-                      onDecQty: () => _decQty(rawIndex),
-                    );
-                  },
-                  childCount: _displayIndices.length,
-                ),
+                  return _OptionalCard(
+                    vm: it,
+                    rawJson: raw,
+                    selected: isSel,
+                    locked: isLocked,
+                    lockedLabel: lockLabel,
+                    lockedHint: lockHint,
+                    showQty: showQty,
+                    quantity: qty,
+                    onAddRemove: () => _toggleOptional(rawIndex),
+                    onIncQty: () => _incQty(rawIndex),
+                    onDecQty: () => _decQty(rawIndex),
+                  );
+                }, childCount: _displayIndices.length),
                 gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                   maxCrossAxisExtent: 420,
                   mainAxisExtent: 150,
@@ -840,7 +884,9 @@ final proceed = await showDialog<bool>(
   }
 
   static List<dynamic> _optionalsForSelected(
-      Map<String, dynamic> dataJson, Offer selected) {
+    Map<String, dynamic> dataJson,
+    Offer selected,
+  ) {
     List<dynamic>? _pickListFromMap(Map m, List<String> keys) {
       for (final k in keys) {
         final v = m[k];
@@ -867,12 +913,13 @@ final proceed = await showDialog<bool>(
         if (v is! Map) continue;
         final vm = (v as Map).cast<String, dynamic>();
 
-        final vid = (vm['VehicleId'] ??
-                vm['vehicleId'] ??
-                vm['id'] ??
-                vm['code'] ??
-                vm['vehicleCode'])
-            ?.toString();
+        final vid =
+            (vm['VehicleId'] ??
+                    vm['vehicleId'] ??
+                    vm['id'] ??
+                    vm['code'] ??
+                    vm['vehicleCode'])
+                ?.toString();
 
         if (vid != null && wanted.contains(vid)) {
           final o = _pickListFromMap(vm, const ['optionals', 'Optionals']);
@@ -892,13 +939,15 @@ final proceed = await showDialog<bool>(
       final m =
           (raw is Map) ? raw.cast<String, dynamic>() : <String, dynamic>{};
 
-      final charge = (m['Charge'] is Map)
-          ? (m['Charge'] as Map).cast<String, dynamic>()
-          : <String, dynamic>{};
+      final charge =
+          (m['Charge'] is Map)
+              ? (m['Charge'] as Map).cast<String, dynamic>()
+              : <String, dynamic>{};
 
-      final equip = (m['Equipment'] is Map)
-          ? (m['Equipment'] as Map).cast<String, dynamic>()
-          : <String, dynamic>{};
+      final equip =
+          (m['Equipment'] is Map)
+              ? (m['Equipment'] as Map).cast<String, dynamic>()
+              : <String, dynamic>{};
 
       final amount = (charge['Amount'] as num?)?.toDouble() ?? 0;
       final currency = charge['CurrencyCode'] as String?;
@@ -917,12 +966,19 @@ final proceed = await showDialog<bool>(
     }).toList();
   }
 
-  static String? _formatHeaderPrice(Map<String, dynamic> dataJson, Offer selected) {
+  static String? _formatHeaderPrice(
+    Map<String, dynamic> dataJson,
+    Offer selected,
+  ) {
     String? _fmt(num? amount, String? currencyCode) {
       if (amount == null) return null;
-      final symbol = (currencyCode == null || currencyCode == 'EUR') ? '€' : currencyCode;
+      final symbol =
+          (currencyCode == null || currencyCode == 'EUR') ? '€' : currencyCode;
       try {
-        return NumberFormat.currency(locale: 'it_IT', symbol: symbol).format(amount);
+        return NumberFormat.currency(
+          locale: 'it_IT',
+          symbol: symbol,
+        ).format(amount);
       } catch (_) {
         return '$symbol ${amount.toStringAsFixed(2)}';
       }
@@ -943,7 +999,8 @@ final proceed = await showDialog<bool>(
 
     num? _amountFromTc(Map<String, dynamic>? tc) {
       if (tc == null) return null;
-      return (tc['RateTotalAmount'] as num?) ?? (tc['EstimatedTotalAmount'] as num?);
+      return (tc['RateTotalAmount'] as num?) ??
+          (tc['EstimatedTotalAmount'] as num?);
     }
 
     String? _currFromTc(Map<String, dynamic>? tc) {
@@ -952,7 +1009,10 @@ final proceed = await showDialog<bool>(
     }
 
     final tcFromRaw = _extractTotalChargeFrom(selected.raw);
-    final formattedFromRaw = _fmt(_amountFromTc(tcFromRaw), _currFromTc(tcFromRaw));
+    final formattedFromRaw = _fmt(
+      _amountFromTc(tcFromRaw),
+      _currFromTc(tcFromRaw),
+    );
     if (formattedFromRaw != null) return formattedFromRaw;
 
     final vehicles = dataJson['Vehicles'];
@@ -967,8 +1027,14 @@ final proceed = await showDialog<bool>(
         if (v is! Map) continue;
         final vm = v.cast<String, dynamic>();
 
-        final vid = (vm['VehicleId'] ?? vm['vehicleId'] ?? vm['id'] ?? vm['Id'] ?? vm['Code'] ?? vm['code'])
-            ?.toString();
+        final vid =
+            (vm['VehicleId'] ??
+                    vm['vehicleId'] ??
+                    vm['id'] ??
+                    vm['Id'] ??
+                    vm['Code'] ??
+                    vm['code'])
+                ?.toString();
 
         if (vid != null && wantedIds.contains(vid)) {
           final tcV = _extractTotalChargeFrom(vm);
@@ -1022,10 +1088,7 @@ class _ProceedButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
 
-  const _ProceedButton({
-    required this.label,
-    required this.onPressed,
-  });
+  const _ProceedButton({required this.label, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -1148,6 +1211,20 @@ class _InsuranceSection extends StatelessWidget {
                 runSpacing: 18,
                 children: [left, ...planWidgets],
               ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF7F2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFFDCCF)),
+                ),
+                child: const Text(
+                  'I pacchetti non coprono i danni derivanti da incuria o negligenza del locatario: errato rifornimento, danni agli interni o alle dotazioni (giacca catarifrangente, seggiolino bambini, catene da neve, carta di circolazione, navigatore satellitare, chiavi del veicolo, targa), lesioni a cerchi, gomme o vetri per condotta sconsiderata (ad esempio guida su strade sterrate o in stato d\'ebbrezza), e guasti causati da calamita naturali.',
+                  style: TextStyle(color: Colors.black87, height: 1.35),
+                ),
+              ),
             ],
           );
         },
@@ -1156,10 +1233,10 @@ class _InsuranceSection extends StatelessWidget {
   }
 
   static BoxDecoration _cardDeco() => BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE6E6E6)),
-      );
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(12),
+    border: Border.all(color: const Color(0xFFE6E6E6)),
+  );
 }
 
 class _LeftIncluded extends StatelessWidget {
@@ -1168,35 +1245,46 @@ class _LeftIncluded extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget row(String title, [String? sub]) => Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.check_circle, size: 18, color: Color(0xFF5E9D2D)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    if (sub != null)
-                      Text(sub, style: const TextStyle(color: Colors.black54, fontSize: 12)),
-                  ],
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.check_circle, size: 18, color: Color(0xFF5E9D2D)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
-              ),
-            ],
+                if (sub != null)
+                  Text(
+                    sub,
+                    style: const TextStyle(color: Colors.black54, fontSize: 12),
+                  ),
+              ],
+            ),
           ),
-        );
+        ],
+      ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Il tuo piano include:',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        const Text(
+          'Il tuo piano include:',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+        ),
         const SizedBox(height: 12),
         const Text('BASIC', style: TextStyle(fontWeight: FontWeight.w800)),
         const SizedBox(height: 10),
-        row('Responsabilità danni € 1.300,00', 'Costo massimo in caso di danni'),
+        row(
+          'Responsabilità danni € 1.300,00',
+          'Costo massimo in caso di danni',
+        ),
         row('Responsabilità furto € 1.600,00', 'Costo fisso in caso di furto'),
         row('Oneri aeroportuali e ferroviari', '(eventuali)'),
         row('Oneri di circolazione'),
@@ -1244,23 +1332,29 @@ class _PlanColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     final total = pricePerDay * days;
 
-    final priceStr =
-        NumberFormat.currency(locale: 'it_IT', symbol: '€').format(pricePerDay);
-    final totalStr =
-        NumberFormat.currency(locale: 'it_IT', symbol: '€').format(total);
+    final priceStr = NumberFormat.currency(
+      locale: 'it_IT',
+      symbol: '€',
+    ).format(pricePerDay);
+    final totalStr = NumberFormat.currency(
+      locale: 'it_IT',
+      symbol: '€',
+    ).format(total);
 
     Widget includeRow(_PlanItem it) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Row(
-            children: [
-              Expanded(child: Text(it.text)),
-              it.included
-                  ? const Text('Inclusa',
-                      style: TextStyle(color: _green, fontWeight: FontWeight.w700))
-                  : const Text('Esclusa', style: TextStyle(color: Colors.black54)),
-            ],
-          ),
-        );
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Expanded(child: Text(it.text)),
+          it.included
+              ? const Text(
+                'Inclusa',
+                style: TextStyle(color: _green, fontWeight: FontWeight.w700),
+              )
+              : const Text('Esclusa', style: TextStyle(color: Colors.black54)),
+        ],
+      ),
+    );
 
     return Container(
       decoration: BoxDecoration(
@@ -1276,7 +1370,13 @@ class _PlanColumn extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                ),
+              ),
               const SizedBox(width: 10),
               Text(
                 'INFO',
@@ -1300,19 +1400,35 @@ class _PlanColumn extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Responsabilità danni',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                const Text(
+                  'Responsabilità danni',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                ),
                 const SizedBox(height: 4),
-                Text(damageTextTop,
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                Text(damageTextBottom,
-                    style: const TextStyle(color: Colors.black54, fontSize: 12)),
+                Text(
+                  damageTextTop,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
+                ),
+                Text(
+                  damageTextBottom,
+                  style: const TextStyle(color: Colors.black54, fontSize: 12),
+                ),
                 const SizedBox(height: 12),
-                const Text('Responsabilità furto',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                const Text(
+                  'Responsabilità furto',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                ),
                 const SizedBox(height: 4),
-                Text(theftText,
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                Text(
+                  theftText,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1323,13 +1439,20 @@ class _PlanColumn extends StatelessWidget {
 
           Row(
             children: [
-              Text('$priceStr ',
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              Text(
+                '$priceStr ',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
               const Text('/ giorno', style: TextStyle(color: Colors.black54)),
             ],
           ),
-          Text('$totalStr Totale per giorni',
-              style: const TextStyle(color: Colors.black45, fontSize: 12)),
+          Text(
+            '$totalStr Totale per giorni',
+            style: const TextStyle(color: Colors.black45, fontSize: 12),
+          ),
 
           const SizedBox(height: 10),
           ElevatedButton(
@@ -1341,7 +1464,10 @@ class _PlanColumn extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
               ),
               elevation: 0,
-              textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              textStyle: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
             ),
             onPressed: onTap,
             child: Text(selected ? 'selezionato' : 'seleziona'),
@@ -1415,24 +1541,28 @@ class _OptionalCard extends StatelessWidget {
 
     showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Extra – JSON grezzo\n${vm.title}'),
-        content: SizedBox(
-          width: 720,
-          child: SingleChildScrollView(
-            child: SelectableText(
-              pretty,
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 12.5),
+      builder:
+          (ctx) => AlertDialog(
+            title: Text('Extra – JSON grezzo\n${vm.title}'),
+            content: SizedBox(
+              width: 720,
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  pretty,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Chiudi'),
+              ),
+            ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Chiudi'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -1451,10 +1581,16 @@ class _OptionalCard extends StatelessWidget {
         height: 26,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? Colors.white.withOpacity(.20) : const Color(0xFFF1F1F3),
+          color:
+              selected
+                  ? Colors.white.withOpacity(.20)
+                  : const Color(0xFFF1F1F3),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: selected ? Colors.white.withOpacity(.35) : const Color(0xFFE2E2E6),
+            color:
+                selected
+                    ? Colors.white.withOpacity(.35)
+                    : const Color(0xFFE2E2E6),
           ),
         ),
         child: Text(
@@ -1487,7 +1623,10 @@ class _OptionalCard extends StatelessWidget {
               color: selected ? Colors.white : const Color(0xFFF1F1F3),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: selected ? Colors.white.withOpacity(.85) : const Color(0xFFE2E2E6),
+                color:
+                    selected
+                        ? Colors.white.withOpacity(.85)
+                        : const Color(0xFFE2E2E6),
               ),
             ),
             child: Text(
@@ -1507,9 +1646,7 @@ class _OptionalCard extends StatelessWidget {
           foregroundColor: selected ? green : Colors.white,
           backgroundColor: selected ? Colors.white : kBrand,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
         ),
         onPressed: onAddRemove,
@@ -1547,7 +1684,10 @@ class _OptionalCard extends StatelessWidget {
           // Title row
           Row(
             children: [
-              Icon(Icons.star_rounded, color: selected ? Colors.white : kBrandDark),
+              Icon(
+                Icons.star_rounded,
+                color: selected ? Colors.white : kBrandDark,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -1586,10 +1726,7 @@ class _OptionalCard extends StatelessWidget {
                 ),
               const Spacer(),
 
-              if (showQty) ...[
-                qtyPill,
-                const SizedBox(width: 10),
-              ],
+              if (showQty) ...[qtyPill, const SizedBox(width: 10)],
 
               actionWidget(),
             ],
@@ -1618,8 +1755,10 @@ class _QtyPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fg = selected ? Colors.white : kBrandDark;
-    final bg = selected ? Colors.white.withOpacity(.18) : const Color(0xFFF1F1F3);
-    final border = selected ? Colors.white.withOpacity(.30) : const Color(0xFFE2E2E6);
+    final bg =
+        selected ? Colors.white.withOpacity(.18) : const Color(0xFFF1F1F3);
+    final border =
+        selected ? Colors.white.withOpacity(.30) : const Color(0xFFE2E2E6);
 
     return Container(
       decoration: BoxDecoration(
@@ -1643,11 +1782,7 @@ class _QtyPill extends StatelessWidget {
               style: TextStyle(color: fg, fontWeight: FontWeight.w900),
             ),
           ),
-          _QtyIcon(
-            icon: Icons.add,
-            color: fg,
-            onTap: onInc,
-          ),
+          _QtyIcon(icon: Icons.add, color: fg, onTap: onInc),
         ],
       ),
     );
