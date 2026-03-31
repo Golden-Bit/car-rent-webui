@@ -10018,7 +10018,7 @@ return 16},
 aU9(){var s,r,q
 try{s=B.io.goi(window.location)
 r=A.l(s)
-return r+"/rent-car-ui/result_page"}catch(q){return"https://www.mysite.com/result_page"}},
+return r+"/rent-car-ui-dev/result_page"}catch(q){return"https://www.mysite.com/result_page"}},
 aT1(a,b,c,d,e,f,g,h,i,j,k,l,m){return new A.XU(e,l,c,m,d,a,b,i,g,j,h,f,k,null)},
 A0:function A0(a){this.a=a},
 qr:function qr(a){this.a=a},
