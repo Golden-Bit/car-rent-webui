@@ -267,6 +267,8 @@ class _ConfirmPageState extends State<ConfirmPage> {
                                   _sectionTitle('Consensi'),
                                   const SizedBox(height: 12),
                                   _buildConsents(),
+                                  const SizedBox(height: 12),
+                                  _buildInsuranceLimitationsNotice(),
                                   if (_submitError != null) ...[
                                     const SizedBox(height: 16),
                                     _buildErrorBox(_submitError!),
@@ -624,10 +626,10 @@ class _ConfirmPageState extends State<ConfirmPage> {
           validator: _emailValidator,
         ),
         _labeledField(
-          'CONFERMA E-MAIL *',
+          'CONFERMA E-MAIL',
           controller: _customerEmailConfirm,
           keyboardType: TextInputType.emailAddress,
-          validator: _confirmEmailValidator,
+          validator: _optionalConfirmEmailValidator,
         ),
         _labeledField(
           'TELEFONO *',
@@ -639,47 +641,22 @@ class _ConfirmPageState extends State<ConfirmPage> {
           'NAZIONE *',
           _customerCountry,
           items: const ['IT', 'FR', 'DE', 'ES', 'GB'],
+          validator: _requiredSelectValidator,
         ),
+        _labeledField('CITTA', controller: _customerCity),
         _labeledField(
-          'CITTÀ *',
-          controller: _customerCity,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'CAP *',
+          'CAP',
           controller: _customerZip,
           keyboardType: TextInputType.number,
-          validator: _requiredValidator,
         ),
+        _labeledField('INDIRIZZO', controller: _customerStreet),
+        _labeledField('CIVICO', controller: _customerNum),
+        _labeledField('CODICE FISCALE', controller: _customerTaxCode),
+        _dateLabeled('DATA DI NASCITA', controller: _customerBirthDate),
+        _labeledField('LUOGO DI NASCITA', controller: _customerBirthPlace),
         _labeledField(
-          'INDIRIZZO *',
-          controller: _customerStreet,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'CIVICO *',
-          controller: _customerNum,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'CODICE FISCALE *',
-          controller: _customerTaxCode,
-          validator: _requiredValidator,
-        ),
-        _dateLabeled(
-          'DATA DI NASCITA *',
-          controller: _customerBirthDate,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'LUOGO DI NASCITA *',
-          controller: _customerBirthPlace,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'PROVINCIA DI NASCITA *',
+          'PROVINCIA DI NASCITA',
           controller: _customerBirthProvince,
-          validator: _requiredValidator,
         ),
       ],
     );
@@ -688,36 +665,12 @@ class _ConfirmPageState extends State<ConfirmPage> {
   Widget _buildCustomerDocumentSection() {
     return _grid(
       children: [
-        _labeledField(
-          'DOCUMENTO *',
-          controller: _customerDocument,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'NUMERO DOCUMENTO *',
-          controller: _customerDocumentNumber,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'TIPO PATENTE *',
-          controller: _customerLicenceType,
-          validator: _requiredValidator,
-        ),
-        _labeledField(
-          'RILASCIATA DA *',
-          controller: _customerIssueBy,
-          validator: _requiredValidator,
-        ),
-        _dateLabeled(
-          'DATA RILASCIO *',
-          controller: _customerReleaseDate,
-          validator: _requiredValidator,
-        ),
-        _dateLabeled(
-          'DATA SCADENZA *',
-          controller: _customerExpiryDate,
-          validator: _requiredValidator,
-        ),
+        _labeledField('DOCUMENTO', controller: _customerDocument),
+        _labeledField('NUMERO DOCUMENTO', controller: _customerDocumentNumber),
+        _labeledField('TIPO PATENTE', controller: _customerLicenceType),
+        _labeledField('RILASCIATA DA', controller: _customerIssueBy),
+        _dateLabeled('DATA RILASCIO', controller: _customerReleaseDate),
+        _dateLabeled('DATA SCADENZA', controller: _customerExpiryDate),
       ],
     );
   }
@@ -1037,6 +990,22 @@ class _ConfirmPageState extends State<ConfirmPage> {
     );
   }
 
+  Widget _buildInsuranceLimitationsNotice() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7F2),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFFFDCCF)),
+      ),
+      child: const Text(
+        'I pacchetti non coprono i danni derivanti da incuria o negligenza del locatario: errato rifornimento, danni agli interni o alle dotazioni (giacca catarifrangente, seggiolino bambini, catene da neve, carta di circolazione, navigatore satellitare, chiavi del veicolo, targa), lesioni a cerchi, gomme o vetri per condotta sconsiderata (ad esempio guida su strade sterrate o in stato d\'ebbrezza), e guasti causati da calamita naturali.',
+        style: TextStyle(color: Colors.black87, height: 1.35),
+      ),
+    );
+  }
+
   Widget _buildErrorBox(String message) {
     return Container(
       width: double.infinity,
@@ -1310,6 +1279,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
     required List<String> items,
     int span = 1,
     double? maxW,
+    String? Function(String?)? validator,
   }) {
     return _GridChild(
       span2: span == 2,
@@ -1326,6 +1296,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
                   items: items,
                   value: value,
                   onChanged: (v) => controller.value = v ?? items.first,
+                  validator: validator,
                 ),
           ),
         ],
@@ -1440,6 +1411,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
     required List<String> items,
     required String value,
     required ValueChanged<String?> onChanged,
+    String? Function(String?)? validator,
   }) {
     return DropdownButtonFormField<String>(
       value: items.contains(value) ? value : items.first,
@@ -1469,6 +1441,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
         ),
       ),
       icon: const Icon(Icons.expand_more),
+      validator: validator,
     );
   }
 
@@ -2315,12 +2288,24 @@ class _ConfirmPageState extends State<ConfirmPage> {
     return ok ? null : 'E-mail non valida';
   }
 
-  String? _confirmEmailValidator(String? value) {
-    final required = _emailValidator(value);
-    if (required != null) return required;
-    if (value!.trim().toLowerCase() !=
-        _customerEmail.text.trim().toLowerCase()) {
+  String? _optionalConfirmEmailValidator(String? value) {
+    if (value == null || value.trim().isEmpty) return null;
+    final v = value.trim();
+    final ok =
+        v.contains('@') &&
+        v.contains('.') &&
+        !v.startsWith('@') &&
+        !v.endsWith('@');
+    if (!ok) return 'E-mail non valida';
+    if (v.toLowerCase() != _customerEmail.text.trim().toLowerCase()) {
       return 'Le e-mail non coincidono';
+    }
+    return null;
+  }
+
+  String? _requiredSelectValidator(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Campo obbligatorio';
     }
     return null;
   }

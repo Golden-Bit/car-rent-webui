@@ -1211,20 +1211,6 @@ class _InsuranceSection extends StatelessWidget {
                 runSpacing: 18,
                 children: [left, ...planWidgets],
               ),
-              const SizedBox(height: 14),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7F2),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFFFDCCF)),
-                ),
-                child: const Text(
-                  'I pacchetti non coprono i danni derivanti da incuria o negligenza del locatario: errato rifornimento, danni agli interni o alle dotazioni (giacca catarifrangente, seggiolino bambini, catene da neve, carta di circolazione, navigatore satellitare, chiavi del veicolo, targa), lesioni a cerchi, gomme o vetri per condotta sconsiderata (ad esempio guida su strade sterrate o in stato d\'ebbrezza), e guasti causati da calamita naturali.',
-                  style: TextStyle(color: Colors.black87, height: 1.35),
-                ),
-              ),
             ],
           );
         },
@@ -1286,7 +1272,6 @@ class _LeftIncluded extends StatelessWidget {
           'Costo massimo in caso di danni',
         ),
         row('Responsabilità furto € 1.600,00', 'Costo fisso in caso di furto'),
-        row('Oneri aeroportuali e ferroviari', '(eventuali)'),
         row('Oneri di circolazione'),
         row('Tasse'),
         row('Km inclusi: illimitati'),

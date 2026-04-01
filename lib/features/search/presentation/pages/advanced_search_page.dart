@@ -25,7 +25,7 @@ const String kMapAsset = 'assets/images/map_placeholder.png';
 /// (deve puntare alla pagina Flutter che gestisce i risultati)
 /// N.B.: ora includiamo il prefisso '/rent-car-ui' così da ottenere:
 ///   baseUrl + '/rent-car-ui/result_page?...'
-const String kResultsRoutePath = '/rent-car-ui-dev/result_page';
+const String kResultsRoutePath = '/rent-car-ui/result_page';
 
 // ADD: gutter orizzontale responsivo (sx/dx)
 double _hGutter(double w) {
