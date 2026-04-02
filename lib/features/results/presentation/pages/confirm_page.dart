@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:car_rent_webui/app.dart';
 import 'package:car_rent_webui/car_rent_sdk/sdk.dart';
 import 'package:car_rent_webui/core/ui/mobile_bottom_padding.dart';
+import 'package:car_rent_webui/core/navigation/web_download.dart';
 import 'package:car_rent_webui/core/widgets/top_nav_bar.dart';
 import 'package:car_rent_webui/features/results/presentation/pages/booking_confirmed_page.dart';
 import 'package:car_rent_webui/features/search/data/myrent_repository.dart';
@@ -56,6 +57,22 @@ class _ConfirmPageState extends State<ConfirmPage> {
   static const Color kInfoBorder = Color(0xFFFFDCCF);
   static const double kRadius = 12;
   static const double kGutter = 16;
+
+  static const String _pdfCondizioniParticolari =
+      'condizioni-particolari-di-noleggio RENTAL PREMIUM_01DEC25-1.pdf';
+  static const String _pdfTerminiCondizioniIt =
+      'termini_e_condizioni_di_noleggio RPREMIUM_01DEC25.pdf';
+  static const String _pdfTerminiCondizioniEn =
+      'GENERAL RENTAL CONDITIONS RENTALPREMIUM_01DEC25.pdf';
+
+  static const List<({String label, String fileName})> _termsPdfLinks = [
+    (label: 'Condizioni particolari', fileName: _pdfCondizioniParticolari),
+    (label: 'Termini e condizioni (IT)', fileName: _pdfTerminiCondizioniIt),
+    (
+      label: 'General rental conditions (EN)',
+      fileName: _pdfTerminiCondizioniEn,
+    ),
+  ];
 
   final _formKey = GlobalKey<FormState>();
   final MyrentRepository _repo = MyrentRepository();
@@ -919,9 +936,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
         _consentTile(
           value: _accTos,
           onChanged: (v) => setState(() => _accTos = v ?? false),
-          text: const Text(
-            'Accetto termini e condizioni generali del servizio.',
-          ),
+          text: _buildTosConsentText(),
         ),
         _consentTile(
           value: _accProfiling,
@@ -938,6 +953,48 @@ class _ConfirmPageState extends State<ConfirmPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildTosConsentText() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Accetto termini e condizioni generali del servizio.'),
+        const SizedBox(height: 6),
+        /*const Text(
+          'Scarica i documenti PDF:',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),*/
+        const SizedBox(height: 4),
+        Wrap(
+          spacing: 10,
+          runSpacing: 4,
+          children:
+              _termsPdfLinks
+                  .map(
+                    (link) => _pdfTextLink(
+                      label: link.label,
+                      fileName: link.fileName,
+                    ),
+                  )
+                  .toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _pdfTextLink({required String label, required String fileName}) {
+    return InkWell(
+      onTap: () => _downloadTermsPdf(fileName),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: kBrandDark,
+          fontWeight: FontWeight.w700,
+          decoration: TextDecoration.underline,
+        ),
+      ),
     );
   }
 
@@ -988,6 +1045,10 @@ class _ConfirmPageState extends State<ConfirmPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _downloadTermsPdf(String fileName) async {
+    await downloadAssetFile('assets/docs/$fileName', fileName: fileName);
   }
 
   Widget _buildInsuranceLimitationsNotice() {
